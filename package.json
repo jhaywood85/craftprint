@@ -1,0 +1,13 @@
+{
+  "name": "craftprint",
+  "version": "0.1.0",
+  "description": "A kid-friendly 3D block-building game that exports STL files for 3D printing",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "test": "node tests/stl.test.mjs"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  }
+}
