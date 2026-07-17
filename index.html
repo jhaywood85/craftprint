@@ -36,6 +36,17 @@
 <!-- Crosshair, shown only while walking around in first person -->
 <div id="crosshair" aria-hidden="true"></div>
 
+<!-- On-screen first-person controls (touch devices only) -->
+<div id="touchControls" aria-hidden="true">
+  <div id="touchStickBase"><div id="touchStickKnob"></div></div>
+  <div id="touchButtons">
+    <button id="touchBreak" class="touch-btn" title="Break">⛏️</button>
+    <button id="touchPlace" class="touch-btn" title="Place">🧱</button>
+    <button id="touchJump" class="touch-btn" title="Jump / Up">⬆️</button>
+    <button id="touchFly" class="touch-btn" title="Fly / Down">🕊️</button>
+  </div>
+</div>
+
 <!-- Tap-to-start prompt shown in walk mode before the mouse is grabbed -->
 <div id="lockHint" class="lock-hint">
   <div class="lock-hint-card">
@@ -93,7 +104,8 @@
   <div id="welcomeModal" class="modal hidden">
     <h2>🚀 Welcome to CraftPrint!</h2>
     <p class="lead">You're <b>inside</b> your own block world — walk around and build, just like Minecraft!</p>
-    <ul class="bullets">
+    <!-- Desktop (keyboard + mouse) instructions -->
+    <ul class="bullets welcome-desktop">
       <li>🕹️ <b>WASD</b> to walk, <b>move the mouse</b> to look around</li>
       <li>🖱️ <b>Left-click</b> to place a block, <b>right-click</b> to break one</li>
       <li>🔺 Pick <b>Wedge</b> (or press <b>Q</b>) for slanted 45° edges — great for roofs! Press <b>R</b> to turn it.</li>
@@ -101,6 +113,16 @@
       <li>🎨 <b>Scroll</b> or press <b>1–9</b> to pick a color</li>
       <li>🎥 Prefer to spin it around? Press <b>Camera view</b> up top</li>
       <li>🖨️ Press <b>Print It!</b> to turn it into a real toy!</li>
+    </ul>
+    <!-- Touch (tablet) instructions -->
+    <ul class="bullets welcome-touch">
+      <li>🕹️ Use the <b>round pad</b> (bottom-left) to walk</li>
+      <li>👆 <b>Drag anywhere</b> on the screen to look around</li>
+      <li>🧱 <b>Place</b> button adds a block • ⛏️ <b>Break</b> removes one</li>
+      <li>⬆️ <b>Jump</b> button hops — tap it <b>twice</b> to fly (then ⬆️ up, 🕊️ down)</li>
+      <li>🔺 Tap <b>Wedge</b> for slanted 45° edges — great for roofs! <b>Turn</b> spins it.</li>
+      <li>🎥 Prefer to spin it around? Tap <b>Camera view</b> up top</li>
+      <li>🖨️ Tap <b>Print It!</b> to turn it into a real toy!</li>
     </ul>
     <p>Here's a little rocket to get you started. Make it yours!</p>
     <button id="letsBuildBtn" class="btn primary big">Let's build! 🧱</button>

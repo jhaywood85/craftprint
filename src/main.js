@@ -11,6 +11,12 @@ import * as storage from './storage.js';
 import { starterRocket } from './starter.js';
 import { setupUI } from './ui.js';
 import { Player } from './player.js';
+import { setupTouchControls } from './touchcontrols.js';
+
+// Touch device (no keyboard/mouse): drives whether walk mode uses on-screen
+// controls instead of pointer lock + WASD.
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches
+  || ('ontouchstart' in window && !window.matchMedia('(pointer: fine)').matches);
 
 // ---------------------------------------------------------------------------
 // Scene
@@ -216,8 +222,15 @@ const app = {
 
   isLocked() { return document.pointerLockElement === canvas; },
 
+  // Is first-person input live right now? On desktop that means pointer lock;
+  // on touch, walk mode runs continuously via the on-screen controls.
+  walkActive() {
+    return this.mode === 'walk' && (IS_TOUCH || this.isLocked());
+  },
+
   lockPointer() {
-    if (this.mode !== 'walk' || this.isLocked()) return;
+    // Touch devices walk via on-screen controls, not pointer lock.
+    if (this.mode !== 'walk' || IS_TOUCH || this.isLocked()) return;
     try { canvas.requestPointerLock(); } catch { /* not available */ }
   },
 
@@ -233,11 +246,18 @@ const app = {
     selBox.visible = false;
     if (mode === 'orbit') {
       if (this.isLocked()) document.exitPointerLock();
+      touch?.hide();
+      document.body.classList.remove('touch-walk');
       // Pull the camera back for a nice overview of the whole plate.
       camera.position.set(30, 26, 38);
       controls.target.set(0, 5, 0);
     } else {
       player.ensureFree(world);
+      if (IS_TOUCH) {
+        touch?.show();
+        touch?.syncFly();
+        document.body.classList.add('touch-walk');
+      }
     }
     this.ui?.onModeChange?.(mode);
   },
@@ -653,12 +673,21 @@ worldRenderer.update(world);
 app.ui = setupUI(app, { firstRun });
 app.notify();
 
-// Walk mode by default on mouse/keyboard machines; orbit on touch devices
-// (no keyboard to walk with).
-const coarse = window.matchMedia('(pointer: coarse)').matches;
+// On-screen first-person controls for touch devices.
+let touch = null;
+if (IS_TOUCH) {
+  document.body.classList.add('touch-device'); // swaps welcome text to touch tips
+  touch = setupTouchControls(app, {
+    input, player, sounds,
+    walkPlace, walkBreak,
+    onLook: (dx, dy, sens) => player.look(dx, dy, sens),
+  });
+}
+
+// Default view: first-person "walk" everywhere now — desktop uses pointer
+// lock + WASD, touch uses the on-screen stick/buttons. Honor a saved choice.
 const savedMode = storage.loadSettings().mode;
-app.applyMode(coarse ? 'orbit' : (savedMode || 'walk'));
-if (coarse) app.ui.hideModeToggle();
+app.applyMode(savedMode || 'walk');
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -672,7 +701,7 @@ renderer.setAnimationLoop((t) => {
   lastT = t;
 
   if (app.mode === 'walk') {
-    if (app.isLocked()) {
+    if (app.walkActive()) {
       player.step(dt, input, world);
       player.syncCamera(camera);
       updateWalkAim();

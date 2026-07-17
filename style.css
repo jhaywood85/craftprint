@@ -76,12 +76,87 @@ body {
 #crosshair::before { left: 50%; top: 0; width: 3px; height: 100%; transform: translateX(-50%); }
 #crosshair::after { top: 50%; left: 0; height: 3px; width: 100%; transform: translateY(-50%); }
 
-body.locked #crosshair { display: block; }
+/* Crosshair shows when first-person is live: pointer-locked (desktop) or in
+   touch walk mode (the on-screen controls are active). */
+body.locked #crosshair,
+body.touch-walk #crosshair { display: block; }
 body.locked #scene canvas { cursor: none; }
 
 /* While walking, the orbit-mode tool rail is meaningless (you break/place
    with the mouse), so hide it. The palette stays for color picking. */
 body.walk-mode .toolbar { display: none; }
+
+/* ---------------------------------------------------- touch FPV controls */
+
+/* Full-screen layer that captures look-drags; only shown when active. Its
+   children (stick + buttons) sit above it and stop propagation. */
+#touchControls {
+  position: fixed;
+  inset: 0;
+  z-index: 13;
+  display: none;
+  touch-action: none;
+}
+#touchControls.active { display: block; }
+
+#touchStickBase {
+  position: absolute;
+  left: calc(28px + env(safe-area-inset-left));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: rgba(255, 253, 247, 0.42);
+  border: 3px solid rgba(58, 51, 82, 0.5);
+  box-shadow: 0 4px 0 rgba(58, 51, 82, 0.25);
+  touch-action: none;
+}
+#touchStickKnob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62px;
+  height: 62px;
+  margin: -31px 0 0 -31px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: 0 3px 0 var(--ink-35);
+  will-change: transform;
+}
+
+#touchButtons {
+  position: absolute;
+  right: calc(24px + env(safe-area-inset-right));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(2, 74px);
+  gap: 12px;
+}
+.touch-btn {
+  width: 74px;
+  height: 74px;
+  font-size: 30px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink-35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.touch-btn.pressed { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink-35); background: var(--amber); }
+#touchPlace { background: #d9f5e2; }
+#touchBreak { background: #ffe0e0; }
+#touchFly.on { background: #cfe6ff; }
+
+/* When flying, relabel Jump/Fly as Up/Down via a hint glyph swap. */
+#touchControls.flying #touchJump::after { content: ""; }
+
 
 /* The "click to grab the mouse" prompt: shown in walk mode when NOT locked
    and no modal is open. */
@@ -95,7 +170,9 @@ body.walk-mode .toolbar { display: none; }
   padding-bottom: 92px;
   pointer-events: none;
 }
-body.walk-mode:not(.locked):not(.modal-open) .lock-hint { display: flex; }
+/* The "click to grab the mouse" prompt is desktop-only; touch walk mode uses
+   the on-screen controls instead, so never show it there. */
+body.walk-mode:not(.locked):not(.modal-open):not(.touch-walk) .lock-hint { display: flex; }
 
 .lock-hint-card {
   background: var(--paper-t);
@@ -400,6 +477,11 @@ body.walk-mode:not(.locked):not(.modal-open) .lock-hint { display: flex; }
 .modal-x:hover { opacity: 1; }
 
 .lead { font-size: 17px; margin: 0 0 12px; }
+
+/* Show the control instructions that match the device. */
+.welcome-touch { display: none; }
+body.touch-device .welcome-desktop { display: none; }
+body.touch-device .welcome-touch { display: block; }
 
 .bullets { list-style: none; padding: 0; margin: 0 0 12px; text-align: left; }
 .bullets li { font-size: 16px; margin: 8px 0; line-height: 1.4; }
