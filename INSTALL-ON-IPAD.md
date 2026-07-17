@@ -35,20 +35,37 @@ on the iPad, use Option B.
 
 ---
 
-## Option B — Host it once, then it lives on the iPad forever
+## Option B — Hosted on GitHub Pages ✅ (this is set up and live)
 
-Put the files on any static web host (all free tiers work great):
-**GitHub Pages**, **Netlify Drop** (literally drag the folder onto
-netlify.com/drop), **Cloudflare Pages**, etc. Then:
+The game is deployed and running here:
 
-1. On the iPad, open the hosted URL (e.g. `https://yourname.github.io/craftprint/`)
-   in **Safari**.
-2. **Share → Add to Home Screen → Add.**
-3. Open it once so it caches. After that it works **offline** — the Mac can be
-   off, the Wi-Fi can be down, and the app still runs. Perfect for car rides.
+### **https://jhaywood85.github.io/craftprint/**
 
-That's the closest thing to a "real app" without the App Store, and it's what
-I'd recommend for everyday use.
+To install it on the iPad:
+
+1. On the **iPad**, open that URL in **Safari**.
+2. Tap **Share** (square with an up-arrow) → **Add to Home Screen** → **Add**.
+3. Open it once so it caches. After that it works **fully offline** — the Mac
+   can be off, the Wi-Fi can be down, and the app still runs. Perfect for car
+   rides.
+
+The code lives in the public repo **github.com/jhaywood85/craftprint**.
+
+### Updating the hosted game later
+
+Any change you make just needs to be pushed, and Pages redeploys automatically:
+
+```sh
+# 1) IMPORTANT: bump the cache version so installed copies fetch the new files
+#    edit sw.js -> change  const CACHE = 'craftprint-v4'  to the next number
+# 2) commit and push
+git add -A
+git commit -m "what changed"
+git push
+```
+
+Give Pages ~1 minute to rebuild, then on the iPad reopen the app (or pull the
+Home-Screen app closed and reopen) to pick up the new version.
 
 ---
 

@@ -12,8 +12,10 @@ needed after setup, nothing is uploaded anywhere.
 
 ## Install on an iPad / tablet
 
-CraftPrint is an installable web app (PWA): open it in **Safari** on the iPad
-and tap **Share → Add to Home Screen**. It then has its own icon, launches
+**Live at https://jhaywood85.github.io/craftprint/** — open that in **Safari**
+on the iPad and tap **Share → Add to Home Screen**.
+
+CraftPrint is an installable web app (PWA): once added it It then has its own icon, launches
 fullscreen with no browser bars, and works **fully offline**. Touch controls,
 the notch/home-bar safe areas, and pinch-zoom are all handled. See
 **[INSTALL-ON-IPAD.md](INSTALL-ON-IPAD.md)** for the two setup options (serve
