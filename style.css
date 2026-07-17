@@ -553,7 +553,24 @@ body.touch-device .welcome-touch { display: block; }
 }
 .warning.hidden { display: none; }
 
-.fine { font-size: 13px; opacity: 0.65; margin-top: 12px; }
+.fine { font-size: 13px; opacity: 0.65; margin-top: 12px; line-height: 1.4; }
+
+.export-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+.export-buttons .btn { width: 100%; }
+/* The rainbow "color file" button gets a playful multi-color border sheen. */
+#download3mfBtn {
+  background: linear-gradient(90deg, #ff5252, #ffd93d, #37c871, #4fc3f7, #9061f9);
+  color: #fff;
+  border-color: var(--ink);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 0 var(--ink-35);
+}
+#download3mfBtn:active { box-shadow: 0 1px 0 var(--ink-35); }
 
 /* ----------------------------------------------------------------- gallery */
 

@@ -302,18 +302,36 @@ export function setupUI(app, { firstRun }) {
     app.highlightCells(floatingCache);
   });
 
-  $('downloadBtn').addEventListener('click', () => {
-    const buffer = app.exportSTL(exportMM);
-    const slug = app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'craftprint';
-    const blob = new Blob([buffer], { type: 'model/stl' });
+  function slugName() {
+    return app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'craftprint';
+  }
+  function downloadFile(data, filename, mime) {
+    const blob = new Blob([data], { type: mime });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${slug}.stl`;
+    a.download = filename;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  // Color 3MF for Bambu Studio + AMS.
+  $('download3mfBtn').addEventListener('click', () => {
+    const data = app.export3MF(exportMM);
+    const file = `${slugName()}.3mf`;
+    downloadFile(data, file, 'model/3mf');
     app.sounds.tada();
     closeModals();
-    toast(`🎉 ${slug}.stl saved! Open it in your slicer and print it!`, 4000);
+    toast(`🌈 ${file} saved! Open it in Bambu Studio to print in color!`, 4000);
+  });
+
+  // Plain single-color STL for any slicer.
+  $('downloadBtn').addEventListener('click', () => {
+    const buffer = app.exportSTL(exportMM);
+    const file = `${slugName()}.stl`;
+    downloadFile(buffer, file, 'model/stl');
+    app.sounds.tada();
+    closeModals();
+    toast(`🎉 ${file} saved! Open it in your slicer and print it!`, 4000);
   });
 
   // ------------------------------------------------------------------- help

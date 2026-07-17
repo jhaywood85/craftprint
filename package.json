@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 4173",
-    "test": "node tests/stl.test.mjs"
+    "test": "node tests/stl.test.mjs && node tests/threemf.test.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"

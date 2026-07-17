@@ -155,8 +155,12 @@
       ⚠️ <span id="floatCount"></span>
       <button id="showFloating" class="btn small">👀 Show me</button>
     </div>
-    <button id="downloadBtn" class="btn primary big">💾 Make my STL file!</button>
-    <p class="fine">Open the .stl file in your slicer (PrusaSlicer, Cura, Bambu Studio…) and print away!</p>
+    <div class="export-buttons">
+      <button id="download3mfBtn" class="btn primary big">🌈 Color file (Bambu)</button>
+      <button id="downloadBtn" class="btn big">⚪ Plain file (STL)</button>
+    </div>
+    <p class="fine"><b>🌈 Color file</b> keeps every block's color — open the <b>.3mf</b> in Bambu Studio and it prints in full color with your AMS.<br>
+      <b>⚪ Plain file</b> is a single-color <b>.stl</b> for any printer/slicer.</p>
   </div>
 
   <div id="galleryModal" class="modal wide hidden">

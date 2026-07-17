@@ -7,6 +7,7 @@ import { PALETTE } from './palette.js';
 import { Sounds } from './sounds.js';
 import { UndoStack } from './undo.js';
 import { blocksToSTL } from './stl.js';
+import { blocksTo3MF } from './threemf.js';
 import * as storage from './storage.js';
 import { starterRocket } from './starter.js';
 import { setupUI } from './ui.js';
@@ -172,6 +173,10 @@ const app = {
 
   exportSTL(mm) {
     return blocksToSTL(world.toArray(), mm);
+  },
+
+  export3MF(mm) {
+    return blocksTo3MF(world.toArray(), mm, this.name);
   },
 
   captureThumbnail() {

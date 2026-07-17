@@ -6,7 +6,7 @@
 // launches are instant and work with no network — ideal for a home-screen
 // app on a kid's tablet.
 
-const CACHE = 'craftprint-v10';
+const CACHE = 'craftprint-v11';
 
 const ASSETS = [
   './',
@@ -14,6 +14,7 @@ const ASSETS = [
   './style.css',
   './manifest.webmanifest',
   './src/main.js',
+  './src/geometry.js',
   './src/meshing.js',
   './src/palette.js',
   './src/player.js',
@@ -22,10 +23,12 @@ const ASSETS = [
   './src/starter.js',
   './src/stl.js',
   './src/storage.js',
+  './src/threemf.js',
   './src/touchcontrols.js',
   './src/ui.js',
   './src/undo.js',
   './src/world.js',
+  './src/zip.js',
   './vendor/three.module.min.js',
   './vendor/three.core.min.js',
   './vendor/addons/controls/OrbitControls.js',
