@@ -62,12 +62,15 @@ export class Player {
       }
     }
 
-    this.#moveAxis(world, 'x', this.vel.x * dt);
-    this.#moveAxis(world, 'y', this.vel.y * dt);
-    this.#moveAxis(world, 'z', this.vel.z * dt);
+    this._moveAxis(world, 'x', this.vel.x * dt);
+    this._moveAxis(world, 'y', this.vel.y * dt);
+    this._moveAxis(world, 'z', this.vel.z * dt);
   }
 
-  #moveAxis(world, axis, delta) {
+  // Internal (underscore-prefixed rather than a #private method: JS private
+  // methods aren't supported until Safari 16.4, and this app must run on
+  // iOS 16.0–16.3 tablets).
+  _moveAxis(world, axis, delta) {
     const p = this.pos;
     p[axis] += delta;
 

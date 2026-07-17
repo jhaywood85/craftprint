@@ -33,6 +33,19 @@
 
 <div id="scene"></div>
 
+<!-- Shown only if the app fails to boot (e.g. an unsupported browser), so a
+     silent blank screen becomes a readable message. -->
+<div id="bootError" hidden>
+  <div class="boot-error-card">
+    <div class="boot-error-emoji">🧱😞</div>
+    <h2>CraftPrint couldn't start</h2>
+    <p>This usually means the tablet's web browser is a little too old for the
+       3D builder. Try updating iOS (Settings → General → Software Update),
+       then reopen CraftPrint.</p>
+    <p class="boot-error-detail" id="bootErrorDetail"></p>
+  </div>
+</div>
+
 <!-- Crosshair, shown only while walking around in first person -->
 <div id="crosshair" aria-hidden="true"></div>
 
@@ -204,6 +217,40 @@
 
 <script type="module" src="src/main.js"></script>
 <script>
+  // --- Boot-failure safety net --------------------------------------------
+  // If main.js can't parse or run (e.g. an old browser missing a JS feature),
+  // the 3D area and palette silently stay blank. Detect that and show a
+  // readable message instead of a mysterious empty screen.
+  (function () {
+    var shown = false;
+    function showBootError(detail) {
+      if (shown) return;
+      shown = true;
+      var el = document.getElementById('bootError');
+      if (!el) return;
+      el.hidden = false;
+      if (detail) document.getElementById('bootErrorDetail').textContent = detail;
+    }
+    // Syntax/parse errors in a module fire a global 'error' event on window.
+    window.addEventListener('error', function (e) {
+      var msg = (e && e.message) || '';
+      var isModule = e && (e.filename || '').indexOf('/src/') !== -1;
+      if (isModule || /import|module|unexpected|private|SyntaxError/i.test(msg)) {
+        showBootError(msg + (e.filename ? '  (' + e.filename.split('/').pop() + ')' : ''));
+      }
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      showBootError(String((e && e.reason && e.reason.message) || e.reason || 'startup error'));
+    });
+    // Fallback: if the app never finished booting (window.craft is the last
+    // thing main.js sets), assume a silent failure.
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.craft) showBootError('The 3D builder did not start.');
+      }, 2500);
+    });
+  })();
+
   // Register the offline service worker. Only works over http(s); silently
   // skipped when opened directly from a file:// path.
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
