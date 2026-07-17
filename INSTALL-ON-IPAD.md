@@ -69,6 +69,18 @@ Home-Screen app closed and reopen) to pick up the new version.
 
 ---
 
+## Playing on the iPad (first person, like Minecraft)
+
+The tablet opens straight into **first-person** view. Your son controls it with
+on-screen touch controls:
+
+- **Round pad, bottom-left** — walk around
+- **Drag anywhere on the screen** — look around
+- **🧱 Place / ⛏️ Break buttons, bottom-right** — add or remove the block the
+  crosshair is on
+- **⬆️ Jump** — hop; **tap it twice to fly** (then ⬆️ = up, 🕊️ = down)
+- **🎥 Camera view** (top) — switch to the spin-around view any time
+
 ## Things worth knowing
 
 - **It must be opened in Safari** for "Add to Home Screen" to appear (Chrome on
