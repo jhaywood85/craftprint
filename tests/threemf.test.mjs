@@ -114,10 +114,10 @@ function run(name, cells, mm, expectedColors) {
 
   const xml = dec.decode(files.get('3D/3dmodel.model'));
   check('model declares millimeter unit', xml.includes('unit="millimeter"'));
-  check('has basematerials group id=1', /<m:basematerials id="1">/.test(xml));
+  check('has colorgroup id=1 (per-face multicolor)', /<m:colorgroup id="1">/.test(xml));
 
-  const baseCount = (xml.match(/<base /g) || []).length;
-  check(`one material per distinct color (${expectedColors})`, baseCount === expectedColors, `(got ${baseCount})`);
+  const baseCount = (xml.match(/<m:color /g) || []).length;
+  check(`one color entry per distinct color (${expectedColors})`, baseCount === expectedColors, `(got ${baseCount})`);
 
   const { tris: mtris, mats, vertCount } = modelTris(xml);
   check('all triangles reference a material (p1)', mats.every((x) => x !== null));

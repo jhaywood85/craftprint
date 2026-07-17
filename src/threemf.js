@@ -66,10 +66,15 @@ export function blocksTo3MF(cells, mm, name = 'CraftPrint model') {
   }));
 
   // --- XML pieces ---
-  const materialsXML = colorOrder
+  // Bambu Studio (and the 3MF Materials Extension) does per-FACE multi-color
+  // via a <m:colorgroup> of <m:color> entries; each triangle references a
+  // color by index on p1/p2/p3. (A <basematerials> group, by contrast, is
+  // treated as a single object material — which is why colors collapsed to
+  // one filament before.)
+  const colorsXML = colorOrder
     .map((ci) => {
       const p = PALETTE[ci] || PALETTE[0];
-      return `      <base name="${escapeXml(p.name)}" displaycolor="#${colorToSRGB(p.hex)}" />`;
+      return `      <m:color color="#${colorToSRGB(p.hex)}" />`;
     })
     .join('\n');
 
@@ -77,9 +82,10 @@ export function blocksTo3MF(cells, mm, name = 'CraftPrint model') {
     .map((p) => `        <vertex x="${fmt(p[0])}" y="${fmt(p[1])}" z="${fmt(p[2])}" />`)
     .join('\n');
 
-  // pid points at the basematerials group (id 1); p1 is the material index.
+  // pid points at the colorgroup (id 1); p1=p2=p3=color index so the whole
+  // triangle is one flat color (blocky builds have no gradients).
   const trisXML = tris
-    .map((t) => `        <triangle v1="${t.a}" v2="${t.b}" v3="${t.c}" pid="1" p1="${t.mat}" />`)
+    .map((t) => `        <triangle v1="${t.a}" v2="${t.b}" v3="${t.c}" pid="1" p1="${t.mat}" p2="${t.mat}" p3="${t.mat}" />`)
     .join('\n');
 
   const model =
@@ -88,10 +94,10 @@ export function blocksTo3MF(cells, mm, name = 'CraftPrint model') {
   <metadata name="Title">${escapeXml(name)}</metadata>
   <metadata name="Application">CraftPrint</metadata>
   <resources>
-    <m:basematerials id="1">
-${materialsXML}
-    </m:basematerials>
-    <object id="2" type="model" pid="1" pindex="0">
+    <m:colorgroup id="1">
+${colorsXML}
+    </m:colorgroup>
+    <object id="2" type="model">
       <mesh>
         <vertices>
 ${vertsXML}
