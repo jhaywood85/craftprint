@@ -16,7 +16,7 @@
 // place/break/look functions, so physics and building code stay shared.
 
 export function setupTouchControls(app, {
-  input, player, sounds, walkPlace, walkBreak, onLook,
+  input, player, sounds, placeAt, breakAt, onLook,
 }) {
   const layer = document.getElementById('touchControls');
   const stickBase = document.getElementById('touchStickBase');
@@ -89,12 +89,13 @@ export function setupTouchControls(app, {
     startX = lastX = e.clientX;
     startY = lastY = e.clientY;
     mode = null;
-    // If the finger stays put for HOLD_MS, it's a break-and-hold.
+    // If the finger stays put for HOLD_MS, it's a break-and-hold. Break at the
+    // finger's latest position (it barely moves during a hold).
     holdTimer = setTimeout(() => {
       if (mode !== null) return;              // already became a look-drag
       mode = 'break';
-      walkBreak();
-      breakTimer = setInterval(walkBreak, BREAK_REPEAT);
+      breakAt(lastX, lastY);
+      breakTimer = setInterval(() => breakAt(lastX, lastY), BREAK_REPEAT);
     }, HOLD_MS);
   });
 
@@ -117,7 +118,7 @@ export function setupTouchControls(app, {
     if (e.pointerId !== gid) return;
     const movedFromStart = Math.hypot(e.clientX - startX, e.clientY - startY);
     if (mode === null && movedFromStart <= TAP_MOVE) {
-      walkPlace();                             // quick tap → place
+      placeAt(e.clientX, e.clientY);           // quick tap → place where tapped
     }
     clearTimers();
     gid = null;

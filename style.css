@@ -88,12 +88,15 @@ body.walk-mode .toolbar { display: none; }
 
 /* ---------------------------------------------------- touch FPV controls */
 
-/* Full-screen layer that captures look-drags; only shown when active. Its
-   children (stick + buttons) sit above it and stop propagation. */
+/* Full-screen layer that captures world taps/holds/look-drags. It sits BELOW
+   the HUD (z-index 10) so the top bar, palette, and shape bar receive their
+   own taps; only taps on empty world space fall through to this layer. The
+   stick + action buttons are children but positioned in the corners clear of
+   the HUD, and they stop event propagation so they still work. */
 #touchControls {
   position: fixed;
   inset: 0;
-  z-index: 13;
+  z-index: 8;
   display: none;
   touch-action: none;
 }

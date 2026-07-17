@@ -333,16 +333,21 @@ function pickNDC(nx, ny, far) {
   return null;
 }
 
-function pickAtPointer(clientX, clientY) {
+function pickAtPointer(clientX, clientY, far = Infinity) {
   const rect = canvas.getBoundingClientRect();
   return pickNDC(
     ((clientX - rect.left) / rect.width) * 2 - 1,
     -((clientY - rect.top) / rect.height) * 2 + 1,
-    Infinity
+    far
   );
 }
 
 const pickCenter = () => pickNDC(0, 0, REACH);
+
+// Touch reach: a bit longer than the crosshair reach so a kid can comfortably
+// tap a block across the plate, but still bounded so a tap at the horizon
+// doesn't place something absurdly far away.
+const TOUCH_REACH = 40;
 
 const mirrorOf = ([x, y, z]) => [SIZE - 1 - x, y, z];
 const sameCell = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
@@ -428,6 +433,10 @@ function doActionFromHit(hit, tool) {
 const walkBreak = () => doActionFromHit(pickCenter(), 'erase');
 const walkPlace = () => doActionFromHit(pickCenter(), 'build');
 const walkPaint = () => doActionFromHit(pickCenter(), 'paint');
+
+// Touch-mode actions: act where the FINGER tapped, not at the crosshair.
+const touchPlaceAt = (x, y) => doActionFromHit(pickAtPointer(x, y, TOUCH_REACH), 'build');
+const touchBreakAt = (x, y) => doActionFromHit(pickAtPointer(x, y, TOUCH_REACH), 'erase');
 function walkPickColor() {
   const hit = pickCenter();
   if (hit?.type === 'block') {
@@ -679,7 +688,8 @@ if (IS_TOUCH) {
   document.body.classList.add('touch-device'); // swaps welcome text to touch tips
   touch = setupTouchControls(app, {
     input, player, sounds,
-    walkPlace, walkBreak,
+    placeAt: touchPlaceAt,   // tap → place a block where the finger is
+    breakAt: touchBreakAt,   // hold → break the block under the finger
     onLook: (dx, dy, sens) => player.look(dx, dy, sens),
   });
 }
