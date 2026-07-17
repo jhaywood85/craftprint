@@ -125,18 +125,19 @@ body.walk-mode .toolbar { display: none; }
   will-change: transform;
 }
 
+/* Jump (top) + Crouch (below), stacked in the lower-right for a right thumb. */
 #touchButtons {
   position: absolute;
-  right: calc(24px + env(safe-area-inset-right));
+  right: calc(28px + env(safe-area-inset-right));
   bottom: calc(96px + env(safe-area-inset-bottom));
-  display: grid;
-  grid-template-columns: repeat(2, 74px);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .touch-btn {
-  width: 74px;
-  height: 74px;
-  font-size: 30px;
+  width: 82px;
+  height: 82px;
+  font-size: 34px;
   border-radius: 50%;
   background: var(--paper);
   border: 3px solid var(--ink);
@@ -150,12 +151,10 @@ body.walk-mode .toolbar { display: none; }
   user-select: none;
 }
 .touch-btn.pressed { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink-35); background: var(--amber); }
-#touchPlace { background: #d9f5e2; }
-#touchBreak { background: #ffe0e0; }
-#touchFly.on { background: #cfe6ff; }
 
-/* When flying, relabel Jump/Fly as Up/Down via a hint glyph swap. */
-#touchControls.flying #touchJump::after { content: ""; }
+/* While flying, tint the up/down buttons so they read as altitude controls. */
+#touchControls.flying #touchJump { background: #cfe6ff; }
+#touchControls.flying #touchCrouch { background: #cfe6ff; }
 
 
 /* The "click to grab the mouse" prompt: shown in walk mode when NOT locked

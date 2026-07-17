@@ -36,14 +36,13 @@
 <!-- Crosshair, shown only while walking around in first person -->
 <div id="crosshair" aria-hidden="true"></div>
 
-<!-- On-screen first-person controls (touch devices only) -->
+<!-- On-screen first-person controls (touch devices only).
+     Tap the screen to place, hold to break, drag to look. -->
 <div id="touchControls" aria-hidden="true">
   <div id="touchStickBase"><div id="touchStickKnob"></div></div>
   <div id="touchButtons">
-    <button id="touchBreak" class="touch-btn" title="Break">⛏️</button>
-    <button id="touchPlace" class="touch-btn" title="Place">🧱</button>
-    <button id="touchJump" class="touch-btn" title="Jump / Up">⬆️</button>
-    <button id="touchFly" class="touch-btn" title="Fly / Down">🕊️</button>
+    <button id="touchJump" class="touch-btn" title="Jump — double-tap to fly, hold to go up">⬆️</button>
+    <button id="touchCrouch" class="touch-btn" title="Crouch — hold to go down while flying">⬇️</button>
   </div>
 </div>
 
@@ -117,9 +116,9 @@
     <!-- Touch (tablet) instructions -->
     <ul class="bullets welcome-touch">
       <li>🕹️ Use the <b>round pad</b> (bottom-left) to walk</li>
-      <li>👆 <b>Drag anywhere</b> on the screen to look around</li>
-      <li>🧱 <b>Place</b> button adds a block • ⛏️ <b>Break</b> removes one</li>
-      <li>⬆️ <b>Jump</b> button hops — tap it <b>twice</b> to fly (then ⬆️ up, 🕊️ down)</li>
+      <li>👆 <b>Tap the screen</b> to place a block, <b>touch and hold</b> to break one</li>
+      <li>🔄 <b>Drag</b> on the screen to look around</li>
+      <li>⬆️ <b>Jump</b> button hops — tap it <b>twice</b> to fly! Then hold ⬆️ to go up, ⬇️ to go down.</li>
       <li>🔺 Tap <b>Wedge</b> for slanted 45° edges — great for roofs! <b>Turn</b> spins it.</li>
       <li>🎥 Prefer to spin it around? Tap <b>Camera view</b> up top</li>
       <li>🖨️ Tap <b>Print It!</b> to turn it into a real toy!</li>
