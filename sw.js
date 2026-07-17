@@ -6,7 +6,7 @@
 // launches are instant and work with no network — ideal for a home-screen
 // app on a kid's tablet.
 
-const CACHE = 'craftprint-v12';
+const CACHE = 'craftprint-v13';
 
 const ASSETS = [
   './',
@@ -69,7 +69,7 @@ self.addEventListener('fetch', (event) => {
           }
           return resp;
         })
-        .catch(() => cached); // offline and uncached: nothing we can do
+        .catch(() => cached || new Response('Offline', { status: 503, statusText: 'Service Unavailable' }));
     })
   );
 });
