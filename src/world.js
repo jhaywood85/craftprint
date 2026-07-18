@@ -27,6 +27,8 @@ export const QHEIGHT = HEIGHT * Q;
 
 export const SHAPE_CUBE = 0;
 export const SHAPE_WEDGE = 1;
+export const SHAPE_ROUND = 2; // vertical quarter-cylinder: rounds a corner in plan view
+export const SHAPE_CURVE = 3; // horizontal quarter-cylinder: a wedge with a curved slope
 
 export const GRID_SIZES = [4, 2, 1]; // full, half, quarter (in quarter units)
 

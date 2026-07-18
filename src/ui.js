@@ -109,14 +109,15 @@ export function setupUI(app, { firstRun }) {
 
   // ---------------------------------------------------------------- shapes
   const shapeButtons = Array.from(document.querySelectorAll('[data-shape]'));
-  const wedgeGlyph = document.querySelector('[data-shape="1"] .glyph');
+  const dirGlyphs = Array.from(document.querySelectorAll('[data-shape] .dir-glyph'));
   function reflectShape() {
     for (const b of shapeButtons) {
       b.classList.toggle('selected', Number(b.dataset.shape) === app.shape);
     }
-    // Spin the wedge icon to show which way the slope will face: each Turn
-    // is a quarter turn, matching the ghost preview in the world.
-    if (wedgeGlyph) wedgeGlyph.style.transform = `rotate(${app.rot * 90}deg)`;
+    // Spin the directional shape icons (wedge, round, curve) to show which
+    // way they'll face: each Turn is a quarter turn, matching the ghost
+    // preview in the world.
+    for (const g of dirGlyphs) g.style.transform = `rotate(${app.rot * 90}deg)`;
   }
   function selectShape(s) {
     app.setShape(s);
@@ -127,7 +128,7 @@ export function setupUI(app, { firstRun }) {
     if (app.tool === 'erase') selectTool('build');
   }
   function toggleShape() {
-    selectShape(app.shape === 0 ? 1 : 0);
+    selectShape((app.shape + 1) % shapeButtons.length); // cycle all shapes
     app.sounds.click();
   }
   for (const b of shapeButtons) {

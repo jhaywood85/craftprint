@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { VoxelWorld, SIZE, HEIGHT, Q, QSIZE, QHEIGHT, SHAPE_CUBE, SHAPE_WEDGE } from './world.js';
+import { VoxelWorld, SIZE, HEIGHT, Q, QSIZE, QHEIGHT, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE } from './world.js';
 import { WorldRenderer, addBed, addBuildVolume, OFF } from './meshing.js';
 import { shapeTriangles } from './shapes.js';
 import { PALETTE } from './palette.js';
@@ -81,7 +81,8 @@ function ghostGeometry(shape) {
   geo.computeVertexNormals();
   return geo;
 }
-const GHOST_GEO = { [SHAPE_CUBE]: ghostGeometry(SHAPE_CUBE), [SHAPE_WEDGE]: ghostGeometry(SHAPE_WEDGE) };
+const GHOST_GEO = {};
+for (const s of [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE]) GHOST_GEO[s] = ghostGeometry(s);
 
 function makeGhost() {
   const ghost = new THREE.Mesh(
@@ -116,7 +117,7 @@ const app = {
   mode: 'walk',       // 'walk' (first person) | 'orbit' (spin-around camera)
   tool: 'build',      // orbit-mode tool: 'build' | 'erase' | 'paint'
   colorIndex: 0,
-  shape: SHAPE_CUBE,  // 0 = cube, 1 = wedge
+  shape: SHAPE_CUBE,  // 0 = cube, 1 = wedge, 2 = round corner, 3 = curve
   rot: 0,             // 0..3 quarter-turns for the block being placed
   gsize: Q,           // placement size in quarter units: 4 full, 2 half, 1 quarter
   mirror: false,
@@ -375,12 +376,17 @@ function sameRecord(a, b) {
   return a.c === b.c && a.s === b.s && a.r === b.r && a.g === b.g;
 }
 
-// A wedge's facing when its cell is mirrored across the X axis. Rotations
-// where the wall faces ±X (r=0,r=2) swap; ±Z facings (r=1,r=3) are unchanged.
-// Cubes are symmetric, so their rotation never matters.
+// A shape's facing when its cell is mirrored across the X axis.
+// Wedge/Curve (wall faces -X,-Z,+X,+Z for r=0..3): ±X facings swap (0↔2),
+// ±Z facings are unchanged. Round (solid corner at -X-Z, +X-Z, +X+Z, -X+Z
+// for r=0..3): the corner flips across X, so 0↔1 and 2↔3. Cubes are
+// symmetric, so their rotation never matters.
 function mirrorRot(shape, rot) {
-  if (shape !== SHAPE_WEDGE) return rot;
-  return rot === 0 ? 2 : rot === 2 ? 0 : rot;
+  if (shape === SHAPE_WEDGE || shape === SHAPE_CURVE) {
+    return rot === 0 ? 2 : rot === 2 ? 0 : rot;
+  }
+  if (shape === SHAPE_ROUND) return [1, 0, 3, 2][rot];
+  return rot;
 }
 
 // Anchor (quarter units) for a new g-sized block placed against a hit face.
@@ -792,7 +798,7 @@ renderer.setAnimationLoop((t) => {
 // Hook for automated tests and debugging.
 window.craft = {
   app, world, player, input, PALETTE, blocksToSTL, SIZE, HEIGHT, Q, QSIZE, QHEIGHT,
-  SHAPE_CUBE, SHAPE_WEDGE,
+  SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE,
   walkBreak, walkPlace, walkPaint, walkPickColor, pickCenter,
   stepPlayer: (dt) => { player.step(dt, input, world); player.syncCamera(camera); },
   doActionFromHit,

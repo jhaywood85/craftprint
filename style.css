@@ -401,16 +401,19 @@ body.walk-mode:not(.locked):not(.modal-open):not(.touch-walk) .lock-hint { displ
 .shape.selected { background: var(--amber); transform: scale(1.05); }
 .shape.selected:active { transform: scale(1.01) translateY(2px); }
 
-/* Wedge direction indicator: the icon spins with the Turn button so kids can
-   see which way the slope will face before placing. */
-.wedge-glyph {
+/* Direction indicators (wedge / round / curve): the icons spin with the Turn
+   button so kids can see which way the shape will face before placing. */
+.dir-glyph {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 24px;
   transition: transform 0.18s ease;
 }
-.wedge-glyph svg { display: block; }
+.dir-glyph svg { display: block; }
+
+/* Six buttons now — let the bar wrap instead of overflowing on narrow screens. */
+.shapebar { flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 16px); }
 
 /* The Size button's square shrinks to show the block size it will place. */
 .sizeglyph {
