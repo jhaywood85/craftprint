@@ -101,19 +101,14 @@
 
 <div id="palette" class="palette hud" aria-label="Block colors"></div>
 
-<!-- Block size picker: full / half / quarter -->
-<div id="sizebar" class="sizebar hud" aria-label="Block size">
-  <button class="btn shape selected" data-gsize="4" title="Full-size blocks"><span class="glyph sizeglyph"><span class="sizebox s4"></span></span><span class="label">Full</span></button>
-  <button class="btn shape" data-gsize="2" title="Half-size blocks — build smaller details"><span class="glyph sizeglyph"><span class="sizebox s2"></span></span><span class="label">Half</span></button>
-  <button class="btn shape" data-gsize="1" title="Quarter-size blocks — tiny details!"><span class="glyph sizeglyph"><span class="sizebox s1"></span></span><span class="label">Quarter</span></button>
-</div>
-
-<!-- Block shape picker + rotate. The wedge icon spins to show which way the
-     slope faces (it matches the ghost preview in the world). -->
-<div id="shapebar" class="shapebar hud" aria-label="Block shape">
+<!-- Block shape picker + rotate + size. The wedge icon spins to show which
+     way the slope faces (it matches the ghost preview in the world). The
+     Size button cycles Full → Half → Quarter, like Turn cycles rotation. -->
+<div id="shapebar" class="shapebar hud" aria-label="Block shape and size">
   <button class="btn shape selected" data-shape="0" title="Cube block (Q switches shape)"><span class="glyph">🧱</span><span class="label">Cube</span></button>
   <button class="btn shape" data-shape="1" title="Wedge block — a 45° edge. The icon shows which way it faces (Q switches shape)"><span class="glyph wedge-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 3 L4 21 L22 21 Z" fill="#e5533d" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Wedge</span></button>
   <button id="rotateBtn" class="btn shape" title="Turn the block (R)"><span class="glyph">🔄</span><span class="label">Turn</span></button>
+  <button id="sizeBtn" class="btn shape" title="Block size — tap to switch Full / Half / Quarter (G)"><span class="glyph sizeglyph"><span class="sizebox s4"></span></span><span class="label">Full</span></button>
 </div>
 
 <div id="counter" class="counter hud">🧱 0</div>
@@ -129,7 +124,7 @@
       <li>🕹️ <b>WASD</b> to walk, <b>move the mouse</b> to look around</li>
       <li>🖱️ <b>Left-click</b> to place a block, <b>right-click</b> to break one</li>
       <li>🔺 Pick <b>Wedge</b> (or press <b>Q</b>) for slanted 45° edges — great for roofs! Press <b>R</b> to turn it — the icon spins to show which way it faces.</li>
-      <li>🔍 The <b>Full / Half / Quarter</b> buttons up top pick the block size — smaller blocks for tiny details!</li>
+      <li>🔍 The <b>Size</b> button (next to Turn) switches Full → Half → Quarter blocks — smaller blocks for tiny details! (<b>G</b> does it too)</li>
       <li>⬆️ <b>Space</b> to jump — tap it <b>twice</b> to fly!</li>
       <li>🎨 <b>Scroll</b> or press <b>1–9</b> to pick a color</li>
       <li>🎥 Prefer to spin it around? Press <b>Camera view</b> up top</li>
@@ -142,7 +137,7 @@
       <li>🔄 <b>Drag</b> on the screen to look around</li>
       <li>⬆️ <b>Jump</b> button hops — tap it <b>twice</b> to fly! Then hold ⬆️ to go up, ⬇️ to go down.</li>
       <li>🔺 Tap <b>Wedge</b> for slanted 45° edges — great for roofs! <b>Turn</b> spins it — the icon shows which way it faces.</li>
-      <li>🔍 The <b>Full / Half / Quarter</b> buttons up top pick the block size — smaller blocks for tiny details!</li>
+      <li>🔍 The <b>Size</b> button (next to Turn) switches Full → Half → Quarter blocks — smaller blocks for tiny details!</li>
       <li>🎥 Prefer to spin it around? Tap <b>Camera view</b> up top</li>
       <li>🖨️ Tap <b>Print It!</b> to turn it into a real toy!</li>
     </ul>
@@ -210,7 +205,7 @@
     <ul class="bullets">
       <li>🧱 <b>Cube</b> or 🔺 <b>Wedge</b> (a 45° sloped edge) — pick from the shape bar or press <b>Q</b></li>
       <li>🔄 <b>Turn</b> (or press <b>R</b>) spins a wedge to face any of four directions — the wedge icon spins too, so you always know which way it points</li>
-      <li>🔍 <b>Full / Half / Quarter</b> (top of the screen) sets the size of the next block — mix sizes to add fine details to big builds. Half blocks snap to a half grid, quarter blocks to a quarter grid.</li>
+      <li>🔍 The <b>Size</b> button (or <b>G</b>) cycles Full → Half → Quarter for the next block — mix sizes to add fine details to big builds. Half blocks snap to a half grid, quarter blocks to a quarter grid. The button lights up when you're building small.</li>
     </ul>
     <h3>✨ Everywhere</h3>
     <ul class="bullets">
