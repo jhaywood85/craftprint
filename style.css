@@ -401,6 +401,53 @@ body.walk-mode:not(.locked):not(.modal-open):not(.touch-walk) .lock-hint { displ
 .shape.selected { background: var(--amber); transform: scale(1.05); }
 .shape.selected:active { transform: scale(1.01) translateY(2px); }
 
+/* Wedge direction indicator: the icon spins with the Turn button so kids can
+   see which way the slope will face before placing. */
+.wedge-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  transition: transform 0.18s ease;
+}
+.wedge-glyph svg { display: block; }
+
+/* ---------------------------------------------------------------- size bar */
+
+/* Full / half / quarter block size picker, top center under the title bar. */
+.sizebar {
+  position: fixed;
+  top: calc(64px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: var(--paper-t);
+  border: 3px solid var(--ink);
+  border-radius: 22px;
+  padding: 7px 10px;
+  box-shadow: 0 5px 0 var(--ink-35);
+}
+
+/* The three squares shrink to show the block size they pick. */
+.sizeglyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  width: 24px;
+}
+.sizebox {
+  display: block;
+  background: #ffb347;
+  border: 2px solid #241d3d;
+  border-radius: 3px;
+}
+.sizebox.s4 { width: 20px; height: 20px; }
+.sizebox.s2 { width: 13px; height: 13px; }
+.sizebox.s1 { width: 8px; height: 8px; border-radius: 2px; }
+
 /* ----------------------------------------------------------------- counter */
 
 .counter {
@@ -628,6 +675,8 @@ body.touch-device .welcome-touch { display: block; }
 @media (max-width: 720px) {
   .topbar { flex-wrap: wrap; }
   .name-input { order: 3; flex-basis: 100%; width: auto; }
+  /* The wrapped top bar is taller — keep the size picker clear of it. */
+  .sizebar { top: calc(118px + env(safe-area-inset-top)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

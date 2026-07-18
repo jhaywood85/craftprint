@@ -48,10 +48,15 @@ function signedVolume(tris) {
 }
 
 // Expected solid volume in mm^3 for a cell list: cube = full, wedge = half.
+// 7-element rows are quarter-unit anchors with size g (4 = full block).
 function expectedVolume(cells, mm) {
   const unit = mm ** 3;
   let v = 0;
-  for (const [, , , , s = 0] of cells) v += (s === 1 ? 0.5 : 1) * unit;
+  for (const row of cells) {
+    const s = row[4] ?? 0;
+    const g = row.length >= 7 ? row[6] : 4;
+    v += (s === 1 ? 0.5 : 1) * (g / 4) ** 3 * unit;
+  }
   return v;
 }
 
@@ -197,6 +202,36 @@ run('pitched roof strip', [
   }
   run('mixed cube+wedge 180-cell blob', cells, 3, {});
 }
+
+// --- Sized blocks (7-element rows: [qx, qy, qz, c, s, r, g], quarter units) --
+
+// 11. A single half block: half the edge length, an eighth of the volume.
+run('single half cube (10mm)', [[0, 0, 0, 0, 0, 0, 2]], 10, {
+  triangles: 12, size: [5, 5, 5], strictManifold: true,
+});
+
+// 12. A single quarter wedge, rotated.
+run('single quarter wedge rot=3 (8mm)', [[4, 0, 4, 2, 1, 3, 1]], 8, { strictManifold: true });
+
+// 13. Two half blocks stacked: same size + aligned, so the shared face is
+//     culled and the pair becomes one sealed solid.
+run('two stacked half cubes (10mm)', [[0, 0, 0, 0, 0, 0, 2], [0, 2, 0, 1, 0, 0, 2]], 10, {
+  triangles: 20, size: [5, 5, 10], strictManifold: true,
+});
+
+// 14. A half block on top of a full block (mixed sizes): both shells stay
+//     closed (no culling across sizes), so edges balance and the volume is
+//     exactly cube + eighth.
+run('half cube on a full cube (10mm)', [[0, 0, 0, 0], [0, 4, 0, 1, 0, 0, 2]], 10, {
+  size: [10, 10, 15],
+});
+
+// 15. Four quarter blocks in a 2x2 row pattern on the ground plus a legacy
+//     full block beside them: mixed formats in one export.
+run('quarter blocks beside a full block', [
+  [0, 0, 0, 0, 0, 0, 1], [1, 0, 0, 1, 0, 0, 1], [0, 0, 1, 2, 0, 0, 1], [1, 0, 1, 3, 0, 0, 1],
+  [1, 0, 0, 4],
+], 8, {});
 
 console.log(failures === 0 ? '\nAll STL tests passed.' : `\n${failures} test(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
