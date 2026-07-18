@@ -46,7 +46,7 @@ Click the world once to grab the mouse, then:
 | Pick a color | **Scroll wheel** or number keys **1–9, 0** |
 | Switch cube ↔ wedge | **Q** (or the shape bar) |
 | Turn the block | **R** |
-| Cycle block size (full → half → quarter) | **G** (or the size bar up top) |
+| Cycle block size (full → half → quarter) | **G** (or the Size button in the shape bar) |
 | Paint what you're aiming at | **F** |
 | Free the mouse | **Esc** (click the world to dive back in) |
 
@@ -64,7 +64,7 @@ Click the world once to grab the mouse, then:
 | Action | How |
 | --- | --- |
 | Choose a shape | 🧱 Cube or 🔺 Wedge (45° edge) — shape bar or **Q**; **R** turns it (the wedge icon spins to show its facing) |
-| Choose a block size | **Full / Half / Quarter** buttons at the top (**G** cycles) — small blocks snap to a finer grid for detail work |
+| Choose a block size | The **Size** button in the shape bar cycles Full → Half → Quarter (**G** too) — small blocks snap to a finer grid for detail work |
 | Build symmetrically | 🦋 Mirror mode (**M**) — wedges flip to mirror too |
 | Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |
 | Save creations | 📦 My Stuff → 📸 Save |

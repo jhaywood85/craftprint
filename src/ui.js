@@ -138,11 +138,15 @@ export function setupUI(app, { firstRun }) {
 
   // ------------------------------------------------------------- block size
   // Full / half / quarter-size building blocks (g = 4 / 2 / 1 quarter units).
-  const sizeButtons = Array.from(document.querySelectorAll('[data-gsize]'));
+  // One compact button that cycles sizes, like Turn cycles rotation; its icon
+  // and label always show the current size, and it lights up when you're
+  // building small so it's obvious why blocks come out tiny.
+  const sizeBtn = $('sizeBtn');
+  const SIZE_LABELS = { 4: 'Full', 2: 'Half', 1: 'Quarter' };
   function reflectSize() {
-    for (const b of sizeButtons) {
-      b.classList.toggle('selected', Number(b.dataset.gsize) === app.gsize);
-    }
+    sizeBtn.querySelector('.sizebox').className = `sizebox s${app.gsize}`;
+    sizeBtn.querySelector('.label').textContent = SIZE_LABELS[app.gsize] || 'Full';
+    sizeBtn.classList.toggle('selected', app.gsize !== 4);
   }
   function selectSize(g) {
     app.setGsize(g);
@@ -155,9 +159,7 @@ export function setupUI(app, { firstRun }) {
     selectSize(order[(order.indexOf(app.gsize) + 1) % order.length]);
     app.sounds.click();
   }
-  for (const b of sizeButtons) {
-    b.addEventListener('click', () => { app.sounds.click(); selectSize(Number(b.dataset.gsize)); });
-  }
+  sizeBtn.addEventListener('click', cycleSize);
   reflectSize();
 
   // ------------------------------------------------------------------- name
