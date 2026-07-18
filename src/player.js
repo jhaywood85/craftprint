@@ -7,8 +7,8 @@ import { OFF } from './meshing.js';
 
 const GRAVITY = -26;
 const JUMP_SPEED = 8.6;     // ~1.3 block jump
-const WALK_SPEED = 4.8;
-const FLY_SPEED = 9;
+const WALK_SPEED = 3.2;
+const FLY_SPEED = 6;
 const HALF = 0.3;           // half-width of the player box
 const BODY_HEIGHT = 1.8;
 const EYE_HEIGHT = 1.62;
