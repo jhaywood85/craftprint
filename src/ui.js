@@ -109,10 +109,14 @@ export function setupUI(app, { firstRun }) {
 
   // ---------------------------------------------------------------- shapes
   const shapeButtons = Array.from(document.querySelectorAll('[data-shape]'));
+  const wedgeGlyph = document.querySelector('[data-shape="1"] .glyph');
   function reflectShape() {
     for (const b of shapeButtons) {
       b.classList.toggle('selected', Number(b.dataset.shape) === app.shape);
     }
+    // Spin the wedge icon to show which way the slope will face: each Turn
+    // is a quarter turn, matching the ghost preview in the world.
+    if (wedgeGlyph) wedgeGlyph.style.transform = `rotate(${app.rot * 90}deg)`;
   }
   function selectShape(s) {
     app.setShape(s);
@@ -131,6 +135,30 @@ export function setupUI(app, { firstRun }) {
   }
   $('rotateBtn').addEventListener('click', () => { app.rotate(); app.sounds.click(); });
   reflectShape();
+
+  // ------------------------------------------------------------- block size
+  // Full / half / quarter-size building blocks (g = 4 / 2 / 1 quarter units).
+  const sizeButtons = Array.from(document.querySelectorAll('[data-gsize]'));
+  function reflectSize() {
+    for (const b of sizeButtons) {
+      b.classList.toggle('selected', Number(b.dataset.gsize) === app.gsize);
+    }
+  }
+  function selectSize(g) {
+    app.setGsize(g);
+    reflectSize();
+    // Choosing a size implies you want to build (not erase).
+    if (app.tool === 'erase') selectTool('build');
+  }
+  function cycleSize() {
+    const order = [4, 2, 1];
+    selectSize(order[(order.indexOf(app.gsize) + 1) % order.length]);
+    app.sounds.click();
+  }
+  for (const b of sizeButtons) {
+    b.addEventListener('click', () => { app.sounds.click(); selectSize(Number(b.dataset.gsize)); });
+  }
+  reflectSize();
 
   // ------------------------------------------------------------------- name
   const nameInput = $('creationName');
@@ -260,14 +288,15 @@ export function setupUI(app, { firstRun }) {
   let exportMM = 5;
 
   function updateExportInfo() {
-    const b = app.world.bounds();
+    const b = app.world.bounds(); // quarter units, max exclusive
     if (!b) return;
-    const blocksW = b.max[0] - b.min[0] + 1;
-    const blocksH = b.max[1] - b.min[1] + 1;
-    const blocksD = b.max[2] - b.min[2] + 1;
+    const blocksW = (b.max[0] - b.min[0]) / 4;
+    const blocksH = (b.max[1] - b.min[1]) / 4;
+    const blocksD = (b.max[2] - b.min[2]) / 4;
     const cm = (n) => ((n * exportMM) / 10).toFixed(1);
+    const fb = (n) => String(Math.round(n * 100) / 100); // "2.5", not "2.50"
     $('exportDims').textContent =
-      `${app.world.count} blocks • ${blocksW} × ${blocksD} × ${blocksH} tall`;
+      `${app.world.count} blocks • ${fb(blocksW)} × ${fb(blocksD)} × ${fb(blocksH)} tall`;
     $('exportSize').textContent =
       `Printed size: ${cm(blocksW)} × ${cm(blocksD)} cm, ${cm(blocksH)} cm tall`;
   }
@@ -365,6 +394,7 @@ export function setupUI(app, { firstRun }) {
     }
 
     if (e.key.toLowerCase() === 'm') { mirrorBtn.click(); return; }
+    if (e.key.toLowerCase() === 'g' && app.mode === 'orbit') { cycleSize(); return; }
 
     // Shape controls work in both modes. (In walk mode, main.js also binds R
     // and Q while the pointer is locked; this covers the unlocked/orbit case.)
@@ -385,7 +415,9 @@ export function setupUI(app, { firstRun }) {
   return {
     selectColor,
     reflectShape,
+    reflectSize,
     toggleShape,
+    cycleSize,
     toast,
     onModeChange,
     hideModeToggle: () => { modeBtn.style.display = 'none'; },

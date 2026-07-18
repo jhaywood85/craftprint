@@ -46,6 +46,7 @@ Click the world once to grab the mouse, then:
 | Pick a color | **Scroll wheel** or number keys **1–9, 0** |
 | Switch cube ↔ wedge | **Q** (or the shape bar) |
 | Turn the block | **R** |
+| Cycle block size (full → half → quarter) | **G** (or the size bar up top) |
 | Paint what you're aiming at | **F** |
 | Free the mouse | **Esc** (click the world to dive back in) |
 
@@ -62,7 +63,8 @@ Click the world once to grab the mouse, then:
 
 | Action | How |
 | --- | --- |
-| Choose a shape | 🧱 Cube or 🔺 Wedge (45° edge) — shape bar or **Q**; **R** turns it |
+| Choose a shape | 🧱 Cube or 🔺 Wedge (45° edge) — shape bar or **Q**; **R** turns it (the wedge icon spins to show its facing) |
+| Choose a block size | **Full / Half / Quarter** buttons at the top (**G** cycles) — small blocks snap to a finer grid for detail work |
 | Build symmetrically | 🦋 Mirror mode (**M**) — wedges flip to mirror too |
 | Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |
 | Save creations | 📦 My Stuff → 📸 Save |
@@ -86,10 +88,12 @@ Click the world once to grab the mouse, then:
 - First-person movement (`src/player.js`): gravity, jumping, creative flying,
   and AABB collision against both the voxel blocks and the build-plate edges,
   using Pointer Lock for mouse look.
-- Block shapes (`src/shapes.js`): each cell stores a shape (cube or wedge) and
-  a rotation. The geometry module is shared by the renderer and the STL
-  exporter so a block looks identical on screen and in the print. A wedge is a
-  triangular prism — a cube with one vertical edge sliced at 45°.
+- Block shapes (`src/shapes.js`): each block stores a shape (cube or wedge),
+  a rotation, and a size (full / half / quarter — the world grid runs at
+  quarter resolution, `src/world.js`). The geometry module is shared by the
+  renderer and the STL exporter so a block looks identical on screen and in
+  the print. A wedge is a triangular prism — a cube with one vertical edge
+  sliced at 45°.
 - Creations autosave to the browser's localStorage; **My Stuff** keeps named
   saves with thumbnails.
 - STL exporter (`src/stl.js`) emits only exterior faces, culling a face only

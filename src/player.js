@@ -7,8 +7,8 @@ import { OFF } from './meshing.js';
 
 const GRAVITY = -26;
 const JUMP_SPEED = 8.6;     // ~1.3 block jump
-const WALK_SPEED = 4.8;
-const FLY_SPEED = 9;
+const WALK_SPEED = 3.2;
+const FLY_SPEED = 6;
 const HALF = 0.3;           // half-width of the player box
 const BODY_HEIGHT = 1.8;
 const EYE_HEIGHT = 1.62;
@@ -70,6 +70,10 @@ export class Player {
   // Internal (underscore-prefixed rather than a #private method: JS private
   // methods aren't supported until Safari 16.4, and this app must run on
   // iOS 16.0–16.3 tablets).
+  //
+  // Collision runs on the QUARTER-unit occupancy grid (world.has takes
+  // quarter coordinates), so half and quarter blocks collide at their real
+  // size — you can stand on a half-block step.
   _moveAxis(world, axis, delta) {
     const p = this.pos;
     p[axis] += delta;
@@ -86,25 +90,25 @@ export class Player {
       p.y = Math.min(p.y, SKY_CAP);
     }
 
-    // Voxel collision: resolve against any filled cell we now overlap.
-    const x0 = Math.floor(p.x - HALF + OFF), x1 = Math.floor(p.x + HALF + OFF - 1e-9);
-    const y0 = Math.max(0, Math.floor(p.y)), y1 = Math.floor(p.y + BODY_HEIGHT - 1e-9);
-    const z0 = Math.floor(p.z - HALF + OFF), z1 = Math.floor(p.z + HALF + OFF - 1e-9);
+    // Voxel collision: resolve against any filled quarter cell we overlap.
+    const x0 = Math.floor((p.x - HALF + OFF) * 4), x1 = Math.floor((p.x + HALF + OFF) * 4 - 1e-9);
+    const y0 = Math.max(0, Math.floor(p.y * 4)), y1 = Math.floor((p.y + BODY_HEIGHT) * 4 - 1e-9);
+    const z0 = Math.floor((p.z - HALF + OFF) * 4), z1 = Math.floor((p.z + HALF + OFF) * 4 - 1e-9);
     for (let cx = x0; cx <= x1; cx++) {
       for (let cy = y0; cy <= y1; cy++) {
         for (let cz = z0; cz <= z1; cz++) {
           if (!world.has(cx, cy, cz)) continue;
           if (axis === 'x') {
-            p.x = delta > 0 ? cx - OFF - HALF - 1e-4 : cx + 1 - OFF + HALF + 1e-4;
+            p.x = delta > 0 ? cx / 4 - OFF - HALF - 1e-4 : (cx + 1) / 4 - OFF + HALF + 1e-4;
             this.vel.x = 0;
           } else if (axis === 'z') {
-            p.z = delta > 0 ? cz - OFF - HALF - 1e-4 : cz + 1 - OFF + HALF + 1e-4;
+            p.z = delta > 0 ? cz / 4 - OFF - HALF - 1e-4 : (cz + 1) / 4 - OFF + HALF + 1e-4;
             this.vel.z = 0;
           } else if (delta > 0) { // bumped head
-            p.y = cy - BODY_HEIGHT - 1e-4;
+            p.y = cy / 4 - BODY_HEIGHT - 1e-4;
             this.vel.y = 0;
           } else {                // landed on a block
-            p.y = cy + 1;
+            p.y = (cy + 1) / 4;
             this.vel.y = 0;
             this.onGround = true;
           }
@@ -114,28 +118,28 @@ export class Player {
     }
   }
 
-  // Would a block at this cell intersect the player's body?
-  overlapsCell([x, y, z]) {
-    return x - OFF < this.pos.x + HALF && x + 1 - OFF > this.pos.x - HALF &&
-           y < this.pos.y + BODY_HEIGHT && y + 1 > this.pos.y &&
-           z - OFF < this.pos.z + HALF && z + 1 - OFF > this.pos.z - HALF;
+  // Would a block anchored at q (quarter units) of size g intersect the body?
+  overlapsRegion([x, y, z], g = 4) {
+    return x / 4 - OFF < this.pos.x + HALF && (x + g) / 4 - OFF > this.pos.x - HALF &&
+           y / 4 < this.pos.y + BODY_HEIGHT && (y + g) / 4 > this.pos.y &&
+           z / 4 - OFF < this.pos.z + HALF && (z + g) / 4 - OFF > this.pos.z - HALF;
   }
 
   // Nudge upward until the body isn't inside any block (used when entering
   // walk mode over an existing build).
   ensureFree(world) {
     let guard = 0;
-    while (guard++ < HEIGHT + 4) {
-      const x0 = Math.floor(this.pos.x - HALF + OFF), x1 = Math.floor(this.pos.x + HALF + OFF - 1e-9);
-      const y0 = Math.max(0, Math.floor(this.pos.y)), y1 = Math.floor(this.pos.y + BODY_HEIGHT - 1e-9);
-      const z0 = Math.floor(this.pos.z - HALF + OFF), z1 = Math.floor(this.pos.z + HALF + OFF - 1e-9);
+    while (guard++ < (HEIGHT + 4) * 4) {
+      const x0 = Math.floor((this.pos.x - HALF + OFF) * 4), x1 = Math.floor((this.pos.x + HALF + OFF) * 4 - 1e-9);
+      const y0 = Math.max(0, Math.floor(this.pos.y * 4)), y1 = Math.floor((this.pos.y + BODY_HEIGHT) * 4 - 1e-9);
+      const z0 = Math.floor((this.pos.z - HALF + OFF) * 4), z1 = Math.floor((this.pos.z + HALF + OFF) * 4 - 1e-9);
       let blocked = false;
       for (let cx = x0; cx <= x1 && !blocked; cx++)
         for (let cy = y0; cy <= y1 && !blocked; cy++)
           for (let cz = z0; cz <= z1 && !blocked; cz++)
             if (world.has(cx, cy, cz)) blocked = true;
       if (!blocked) return;
-      this.pos.y = Math.floor(this.pos.y) + 1;
+      this.pos.y = Math.floor(this.pos.y * 4) / 4 + 0.25;
     }
   }
 }

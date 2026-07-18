@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { VoxelWorld, SIZE, HEIGHT, SHAPE_CUBE, SHAPE_WEDGE } from './world.js';
+import { VoxelWorld, SIZE, HEIGHT, Q, QSIZE, QHEIGHT, SHAPE_CUBE, SHAPE_WEDGE } from './world.js';
 import { WorldRenderer, addBed, addBuildVolume, OFF } from './meshing.js';
 import { shapeTriangles } from './shapes.js';
 import { PALETTE } from './palette.js';
@@ -96,6 +96,7 @@ const ghost = makeGhost();
 const ghostMirror = makeGhost();
 
 // Minecraft-style wireframe on the block you're aiming at (walk mode).
+// Unit-sized; scaled per frame to the aimed block's size.
 const selBox = new THREE.LineSegments(
   new THREE.EdgesGeometry(new THREE.BoxGeometry(1.004, 1.004, 1.004)),
   new THREE.LineBasicMaterial({ color: '#241d3d', transparent: true, opacity: 0.9 })
@@ -117,6 +118,7 @@ const app = {
   colorIndex: 0,
   shape: SHAPE_CUBE,  // 0 = cube, 1 = wedge
   rot: 0,             // 0..3 quarter-turns for the block being placed
+  gsize: Q,           // placement size in quarter units: 4 full, 2 half, 1 quarter
   mirror: false,
   name: 'My Creation',
   onChange: [],       // subscribers, called after any world change
@@ -125,7 +127,12 @@ const app = {
   setTool(tool) { this.tool = tool; updateGhostFromLast(); },
   setColor(i) { this.colorIndex = i; updateGhostFromLast(); },
   setShape(s) { this.shape = s; updateGhostFromLast(); },
-  rotate() { this.rot = (this.rot + 1) % 4; updateGhostFromLast(); },
+  setGsize(g) { this.gsize = g; updateGhostFromLast(); },
+  rotate() {
+    this.rot = (this.rot + 1) % 4;
+    this.ui?.reflectShape(); // spins the wedge direction indicator
+    updateGhostFromLast();
+  },
 
   notify() { for (const fn of this.onChange) fn(); },
 
@@ -194,7 +201,8 @@ const app = {
     return c.toDataURL('image/jpeg', 0.72);
   },
 
-  // Flash a set of cells red (used for the "floating blocks" warning).
+  // Flash a set of blocks red (used for the "floating blocks" warning).
+  // Rows are [x, y, z, g] anchors in quarter units (world.floatingCells()).
   highlightCells(cells) {
     if (cells.length === 0) return;
     const mesh = new THREE.InstancedMesh(
@@ -203,8 +211,12 @@ const app = {
       cells.length
     );
     const m = new THREE.Matrix4();
-    cells.forEach(([x, y, z], i) => {
-      m.makeTranslation(x + 0.5 - OFF, y + 0.5, z + 0.5 - OFF);
+    const pos = new THREE.Vector3();
+    const scl = new THREE.Vector3();
+    cells.forEach(([x, y, z, g = Q], i) => {
+      pos.set((x + g / 2) / Q - OFF, (y + g / 2) / Q, (z + g / 2) / Q - OFF);
+      scl.setScalar(g / Q);
+      m.compose(pos, new THREE.Quaternion(), scl);
       mesh.setMatrixAt(i, m);
     });
     scene.add(mesh);
@@ -307,32 +319,31 @@ function pickNDC(nx, ny, far) {
   const hits = raycaster.intersectObjects(worldRenderer.meshes);
   if (hits.length > 0 && hits[0].instanceId != null) {
     const hit = hits[0];
-    const cell = worldRenderer.cellForHit(hit);
-    if (cell) {
-      // Placement direction: which cube face did the ray cross? Derive it from
-      // the world-space hit point relative to the cell center, picking the
-      // axis where the point sits closest to a cell boundary (±0.5). This is
-      // robust for wedges' sloped faces, where the raw triangle normal is
-      // diagonal and would point into an ambiguous place.
+    const block = worldRenderer.blockForHit(hit); // { q: [x,y,z], g }
+    if (block) {
+      // Placement direction: which face did the ray cross? Derive it from
+      // the world-space hit point relative to the block center, picking the
+      // axis where the point sits closest to a boundary. This is robust for
+      // wedges' sloped faces, where the raw triangle normal is diagonal and
+      // would point into an ambiguous place.
+      const { q, g } = block;
       const p = hit.point;
-      const lx = p.x + OFF - (cell[0] + 0.5);
-      const ly = p.y - (cell[1] + 0.5);
-      const lz = p.z + OFF - (cell[2] + 0.5);
+      const lx = p.x + OFF - (q[0] + g / 2) / Q;
+      const ly = p.y - (q[1] + g / 2) / Q;
+      const lz = p.z + OFF - (q[2] + g / 2) / Q;
       const ax = Math.abs(lx), ay = Math.abs(ly), az = Math.abs(lz);
       let normal;
       if (ax >= ay && ax >= az) normal = [Math.sign(lx) || 1, 0, 0];
       else if (ay >= az) normal = [0, Math.sign(ly) || 1, 0];
       else normal = [0, 0, Math.sign(lz) || 1];
-      return { type: 'block', cell, normal };
+      return { type: 'block', block, normal, point: p.clone() };
     }
   }
 
   if (raycaster.ray.intersectPlane(groundPlane, planeHit) &&
       raycaster.ray.origin.distanceTo(planeHit) <= far) {
-    const x = Math.floor(planeHit.x + OFF);
-    const z = Math.floor(planeHit.z + OFF);
-    if (x >= 0 && x < SIZE && z >= 0 && z < SIZE) {
-      return { type: 'ground', cell: [x, 0, z] };
+    if (Math.abs(planeHit.x) <= OFF && Math.abs(planeHit.z) <= OFF) {
+      return { type: 'ground', point: planeHit.clone() };
     }
   }
   return null;
@@ -354,12 +365,14 @@ const pickCenter = () => pickNDC(0, 0, REACH);
 // doesn't place something absurdly far away.
 const TOUCH_REACH = 40;
 
-const mirrorOf = ([x, y, z]) => [SIZE - 1 - x, y, z];
+// Mirror an anchor across the plate's X center. Anchors stay aligned to
+// their own grid because QSIZE is a multiple of every block size.
+const mirrorOf = ([x, y, z], g) => [QSIZE - x - g, y, z];
 const sameCell = (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 
 function sameRecord(a, b) {
   if (a == null || b == null) return a === b;
-  return a.c === b.c && a.s === b.s && a.r === b.r;
+  return a.c === b.c && a.s === b.s && a.r === b.r && a.g === b.g;
 }
 
 // A wedge's facing when its cell is mirrored across the X axis. Rotations
@@ -370,62 +383,96 @@ function mirrorRot(shape, rot) {
   return rot === 0 ? 2 : rot === 2 ? 0 : rot;
 }
 
+// Anchor (quarter units) for a new g-sized block placed against a hit face.
+// Along the face normal the block sits just past the face plane, snapped to
+// the global g-grid (so half blocks live on the half grid, etc.). Across the
+// face it follows the tap point, hugging the tapped block's footprint when
+// the new block is the smaller one.
+function anchorAgainstFace(hit, g) {
+  const { q, g: hg } = hit.block;
+  const n = hit.normal;
+  const hq = [(hit.point.x + OFF) * Q, hit.point.y * Q, (hit.point.z + OFF) * Q];
+  const lim = [QSIZE, QHEIGHT, QSIZE];
+  const out = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    if (n[i] > 0) out[i] = Math.ceil((q[i] + hg) / g) * g;
+    else if (n[i] < 0) out[i] = Math.floor(q[i] / g) * g - g;
+    else {
+      let v = Math.floor(hq[i] / g) * g;
+      if (g <= hg) v = Math.min(Math.max(v, q[i]), q[i] + hg - g);
+      out[i] = Math.min(Math.max(v, 0), lim[i] - g);
+    }
+  }
+  return out;
+}
+
 // Where would the given tool act, for a pick result?
-function targetCells(hit, tool) {
+// Returns regions [{ q: [x, y, z], g }] (anchor + size, quarter units).
+function targetRegions(hit, tool) {
   if (!hit) return [];
   let base = null;
   if (tool === 'build') {
+    const g = app.gsize;
+    let q;
     if (hit.type === 'block') {
-      base = [hit.cell[0] + hit.normal[0], hit.cell[1] + hit.normal[1], hit.cell[2] + hit.normal[2]];
-    } else {
-      base = hit.cell;
+      q = anchorAgainstFace(hit, g);
+    } else { // ground plane: snap the tap point to the g-grid
+      q = [
+        Math.min(Math.max(Math.floor((hit.point.x + OFF) * Q / g) * g, 0), QSIZE - g),
+        0,
+        Math.min(Math.max(Math.floor((hit.point.z + OFF) * Q / g) * g, 0), QSIZE - g),
+      ];
     }
-    if (!world.inBounds(...base) || world.has(...base)) base = null;
+    if (world.inBounds(...q, g) && world.regionFree(...q, g)) base = { q, g };
   } else if (hit.type === 'block') {
-    base = hit.cell;
+    base = { q: hit.block.q, g: hit.block.g };
   }
   if (!base) return [];
-  const cells = [base];
+  const regions = [base];
   if (app.mirror) {
-    const m = mirrorOf(base);
-    if (!sameCell(m, base)) {
-      if (tool !== 'build' ? world.has(...m) : (world.inBounds(...m) && !world.has(...m))) {
-        cells.push(m);
+    const mq = mirrorOf(base.q, base.g);
+    if (!sameCell(mq, base.q)) {
+      if (tool === 'build') {
+        if (world.inBounds(...mq, base.g) && world.regionFree(...mq, base.g)) {
+          regions.push({ q: mq, g: base.g });
+        }
+      } else if (world.getCell(...mq)?.g === base.g) {
+        regions.push({ q: mq, g: base.g });
       }
     }
   }
-  return cells;
+  return regions;
 }
 
 function doActionFromHit(hit, tool) {
   if (!hit) return;
 
   if (tool === 'build' && hit.type === 'block') {
-    const t = [hit.cell[0] + hit.normal[0], hit.cell[1] + hit.normal[1], hit.cell[2] + hit.normal[2]];
-    if (!world.inBounds(...t)) { sounds.no(); app.flashBounds(); return; }
+    const t = anchorAgainstFace(hit, app.gsize);
+    if (!world.inBounds(...t, app.gsize)) { sounds.no(); app.flashBounds(); return; }
   }
 
-  let cells = targetCells(hit, tool);
+  let regions = targetRegions(hit, tool);
   if (tool === 'build' && app.mode === 'walk') {
-    cells = cells.filter((c) => !player.overlapsCell(c)); // don't build inside yourself
+    regions = regions.filter((r) => !player.overlapsRegion(r.q, r.g)); // don't build inside yourself
   }
-  if (cells.length === 0) {
+  if (regions.length === 0) {
     if (tool === 'build') sounds.no();
     return;
   }
 
-  const changes = cells.map(([x, y, z], idx) => {
+  const changes = regions.map(({ q: [x, y, z], g }, idx) => {
     const prev = world.getCell(x, y, z) ?? null;
     let next;
     if (tool === 'erase') {
       next = null;
     } else if (tool === 'paint') {
-      // Keep the block's shape/rotation, just change its color.
-      next = { c: app.colorIndex, s: prev?.s ?? SHAPE_CUBE, r: prev?.r ?? 0 };
+      // Keep the block's shape/rotation/size, just change its color.
+      next = { c: app.colorIndex, s: prev?.s ?? SHAPE_CUBE, r: prev?.r ?? 0, g: prev?.g ?? Q };
     } else { // build
       // The mirror twin (idx 1) flips a wedge's facing so it mirrors visually.
       const r = idx === 1 ? mirrorRot(app.shape, app.rot) : app.rot;
-      next = { c: app.colorIndex, s: app.shape, r };
+      next = { c: app.colorIndex, s: app.shape, r, g };
     }
     return { x, y, z, prev, next };
   });
@@ -445,12 +492,14 @@ const touchBreakAt = (x, y) => doActionFromHit(pickAtPointer(x, y, TOUCH_REACH),
 function walkPickColor() {
   const hit = pickCenter();
   if (hit?.type === 'block') {
-    const rec = world.getCell(...hit.cell);
+    const rec = world.getCell(...hit.block.q);
     if (rec) {
       app.ui?.selectColor(rec.c);
       app.shape = rec.s;
       app.rot = rec.r;
+      app.gsize = rec.g;
       app.ui?.reflectShape();
+      app.ui?.reflectSize();
       sounds.click();
     }
   }
@@ -462,28 +511,31 @@ function walkPickColor() {
 
 let lastPointer = null;
 
-function showGhosts(cells, tool) {
+function showGhosts(regions, tool) {
   const color = tool === 'erase' ? '#ff4040' : PALETTE[app.colorIndex].hex;
   // Building shows the shape/rotation you'll place; erase/paint just outline
-  // the target cell as a cube.
+  // the target block as a cube.
   const shape = tool === 'build' ? app.shape : SHAPE_CUBE;
-  const ghosts = [[ghost, cells[0], app.rot], [ghostMirror, cells[1], mirrorRot(shape, app.rot)]];
-  for (const [g, cell, rot] of ghosts) {
-    if (cell) {
-      g.visible = true;
-      g.geometry = GHOST_GEO[shape];
-      g.material.color.set(color);
-      g.position.set(cell[0] + 0.5 - OFF, cell[1] + 0.5, cell[2] + 0.5 - OFF);
-      g.rotation.set(0, -rot * Math.PI / 2, 0);
+  const ghosts = [[ghost, regions[0], app.rot], [ghostMirror, regions[1], mirrorRot(shape, app.rot)]];
+  for (const [gh, region, rot] of ghosts) {
+    if (region) {
+      const [x, y, z] = region.q;
+      const g = region.g;
+      gh.visible = true;
+      gh.geometry = GHOST_GEO[shape];
+      gh.material.color.set(color);
+      gh.scale.setScalar(g / Q);
+      gh.position.set((x + g / 2) / Q - OFF, (y + g / 2) / Q, (z + g / 2) / Q - OFF);
+      gh.rotation.set(0, -rot * Math.PI / 2, 0);
     } else {
-      g.visible = false;
+      gh.visible = false;
     }
   }
 }
 
 function updateGhost(clientX, clientY) {
   lastPointer = [clientX, clientY];
-  showGhosts(targetCells(pickAtPointer(clientX, clientY), app.tool), app.tool);
+  showGhosts(targetRegions(pickAtPointer(clientX, clientY), app.tool), app.tool);
 }
 
 function updateGhostFromLast() {
@@ -501,13 +553,15 @@ function hideGhosts() {
 function updateWalkAim() {
   const hit = pickCenter();
   if (hit?.type === 'block') {
+    const { q, g } = hit.block;
     selBox.visible = true;
-    selBox.position.set(hit.cell[0] + 0.5 - OFF, hit.cell[1] + 0.5, hit.cell[2] + 0.5 - OFF);
+    selBox.scale.setScalar(g / Q);
+    selBox.position.set((q[0] + g / 2) / Q - OFF, (q[1] + g / 2) / Q, (q[2] + g / 2) / Q - OFF);
   } else {
     selBox.visible = false;
   }
-  const cells = targetCells(hit, 'build').filter((c) => !player.overlapsCell(c));
-  showGhosts(cells, 'build');
+  const regions = targetRegions(hit, 'build').filter((r) => !player.overlapsRegion(r.q, r.g));
+  showGhosts(regions, 'build');
 }
 
 // ---------------------------------------------------------------------------
@@ -662,6 +716,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyF' && !e.repeat) walkPaint();
   if (e.code === 'KeyR' && !e.repeat) { app.rotate(); app.ui?.reflectShape(); sounds.click(); }
   if (e.code === 'KeyQ' && !e.repeat) { app.ui?.toggleShape(); }
+  if (e.code === 'KeyG' && !e.repeat) { app.ui?.cycleSize(); }
 });
 
 window.addEventListener('keyup', (e) => {
@@ -736,7 +791,7 @@ renderer.setAnimationLoop((t) => {
 
 // Hook for automated tests and debugging.
 window.craft = {
-  app, world, player, input, PALETTE, blocksToSTL, SIZE, HEIGHT,
+  app, world, player, input, PALETTE, blocksToSTL, SIZE, HEIGHT, Q, QSIZE, QHEIGHT,
   SHAPE_CUBE, SHAPE_WEDGE,
   walkBreak, walkPlace, walkPaint, walkPickColor, pickCenter,
   stepPlayer: (dt) => { player.step(dt, input, world); player.syncCamera(camera); },

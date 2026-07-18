@@ -2,14 +2,18 @@
 // per-instance color), plus the printer-bed base plate and build-volume frame.
 
 import * as THREE from 'three';
-import { SIZE, HEIGHT, SHAPE_CUBE, SHAPE_WEDGE } from './world.js';
+import { SIZE, HEIGHT, Q, SHAPE_CUBE, SHAPE_WEDGE } from './world.js';
 import { shapeTriangles } from './shapes.js';
 
-// World is rendered centered on the origin: cell (x,y,z) occupies
-// [x-OFF, x+1-OFF] x [y, y+1] x [z-OFF, z+1-OFF].
+// World is rendered centered on the origin. Block anchors are in QUARTER
+// units (see world.js): anchor (x,y,z) of size g occupies
+// [x/4-OFF, (x+g)/4-OFF] x [y/4, (y+g)/4] x [z/4-OFF, (z+g)/4-OFF].
 export const OFF = SIZE / 2;
 
-const MAX_INSTANCES = SIZE * SIZE * HEIGHT;
+// InstancedMesh capacity is allocated up front, so start modest and grow by
+// doubling when a build outgrows it (quarter blocks can far exceed the old
+// one-block-per-cell ceiling).
+const INITIAL_CAPACITY = 8192;
 
 // A subtle rounded border baked into the face texture gives blocks that
 // friendly "toy brick" definition without extra geometry.
@@ -78,13 +82,30 @@ function shapeGeometry(shape) {
 // because each instance is a real transformed copy of the shape geometry.
 class ShapeLayer {
   constructor(scene, geometry, material) {
-    this.mesh = new THREE.InstancedMesh(geometry, material, MAX_INSTANCES);
+    this.scene = scene;
+    this.geometry = geometry;
+    this.material = material;
+    this.indexToBlock = []; // instanceId -> { q: [x, y, z], g }
+    this._make(INITIAL_CAPACITY);
+  }
+
+  _make(capacity) {
+    this.capacity = capacity;
+    this.mesh = new THREE.InstancedMesh(this.geometry, this.material, capacity);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
-    this.indexToCell = []; // instanceId -> [x, y, z]
-    scene.add(this.mesh);
+    this.scene.add(this.mesh);
+  }
+
+  ensureCapacity(n) {
+    if (n <= this.capacity) return;
+    let cap = this.capacity;
+    while (cap < n) cap *= 2;
+    this.scene.remove(this.mesh);
+    this.mesh.dispose(); // frees instance buffers; geometry/material are shared
+    this._make(cap);
   }
 }
 
@@ -103,37 +124,51 @@ export class WorldRenderer {
     this._m = new THREE.Matrix4();
     this._pos = new THREE.Vector3();
     this._quat = new THREE.Quaternion();
-    this._one = new THREE.Vector3(1, 1, 1);
+    this._scale = new THREE.Vector3(1, 1, 1);
     this._axis = new THREE.Vector3(0, 1, 0);
   }
 
-  // Resolve a raycast hit on any layer back to its cell record.
-  cellForHit(hit) {
+  // Resolve a raycast hit on any layer back to its block: { q: [x,y,z], g }
+  // (anchor in quarter units) or null.
+  blockForHit(hit) {
     for (const shape of [SHAPE_CUBE, SHAPE_WEDGE]) {
       const layer = this.layers[shape];
-      if (hit.object === layer.mesh) return layer.indexToCell[hit.instanceId] || null;
+      if (hit.object === layer.mesh) return layer.indexToBlock[hit.instanceId] || null;
     }
     return null;
   }
 
   update(world) {
+    // Grow layer capacity first (recreating a mesh mid-fill would drop data).
+    const totals = { [SHAPE_CUBE]: 0, [SHAPE_WEDGE]: 0 };
+    world.forEach((x, y, z, rec) => {
+      totals[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
+    });
+    for (const shape of [SHAPE_CUBE, SHAPE_WEDGE]) {
+      this.layers[shape].ensureCapacity(totals[shape]);
+    }
+    this.meshes.length = 0;
+    this.meshes.push(this.layers[SHAPE_CUBE].mesh, this.layers[SHAPE_WEDGE].mesh);
+
     const counts = { [SHAPE_CUBE]: 0, [SHAPE_WEDGE]: 0 };
     world.forEach((x, y, z, rec) => {
       const layer = this.layers[rec.s] || this.layers[SHAPE_CUBE];
       const i = counts[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
-      this._pos.set(x + 0.5 - OFF, y + 0.5, z + 0.5 - OFF);
+      const size = rec.g / Q; // edge length in world units
+      this._pos.set((x + rec.g / 2) / Q - OFF, (y + rec.g / 2) / Q, (z + rec.g / 2) / Q - OFF);
       // r=1 turns +X -> +Z (CCW seen from above) to match the exporter, which
       // is a rotation of -r*90° about +Y in three.js's right-handed frame.
       this._quat.setFromAxisAngle(this._axis, -rec.r * Math.PI / 2);
-      this._m.compose(this._pos, this._quat, this._one);
+      this._scale.set(size, size, size);
+      this._m.compose(this._pos, this._quat, this._scale);
       layer.mesh.setMatrixAt(i, this._m);
       layer.mesh.setColorAt(i, this.paletteColors[rec.c] || this.paletteColors[0]);
-      layer.indexToCell[i] = [x, y, z];
+      layer.indexToBlock[i] = { q: [x, y, z], g: rec.g };
     });
     for (const shape of [SHAPE_CUBE, SHAPE_WEDGE]) {
       const layer = this.layers[shape];
       layer.mesh.count = counts[shape];
-      layer.indexToCell.length = counts[shape];
+      layer.indexToBlock.length = counts[shape];
       layer.mesh.instanceMatrix.needsUpdate = true;
       if (layer.mesh.instanceColor) layer.mesh.instanceColor.needsUpdate = true;
       layer.mesh.computeBoundingSphere();
