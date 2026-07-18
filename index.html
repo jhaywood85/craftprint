@@ -106,7 +106,9 @@
      Size button cycles Full → Half → Quarter, like Turn cycles rotation. -->
 <div id="shapebar" class="shapebar hud" aria-label="Block shape and size">
   <button class="btn shape selected" data-shape="0" title="Cube block (Q switches shape)"><span class="glyph">🧱</span><span class="label">Cube</span></button>
-  <button class="btn shape" data-shape="1" title="Wedge block — a 45° edge. The icon shows which way it faces (Q switches shape)"><span class="glyph wedge-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 3 L4 21 L22 21 Z" fill="#e5533d" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Wedge</span></button>
+  <button class="btn shape" data-shape="1" title="Wedge block — a 45° edge. The icon shows which way it faces (Q switches shape)"><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 3 L4 21 L22 21 Z" fill="#e5533d" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Wedge</span></button>
+  <button class="btn shape" data-shape="2" title="Round corner block — rounds a corner seen from above, great for towers. The icon shows which corner (Q switches shape)"><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 3 L21 3 A18 18 0 0 1 3 21 Z" fill="#57b96b" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Round</span></button>
+  <button class="btn shape" data-shape="3" title="Curve block — a wedge with a rounded slope, great for smooth roofs. The icon shows which way it faces (Q switches shape)"><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 21 L3 3 A18 18 0 0 1 21 21 Z" fill="#8f7df0" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Curve</span></button>
   <button id="rotateBtn" class="btn shape" title="Turn the block (R)"><span class="glyph">🔄</span><span class="label">Turn</span></button>
   <button id="sizeBtn" class="btn shape" title="Block size — tap to switch Full / Half / Quarter (G)"><span class="glyph sizeglyph"><span class="sizebox s4"></span></span><span class="label">Full</span></button>
 </div>
@@ -123,7 +125,7 @@
     <ul class="bullets welcome-desktop">
       <li>🕹️ <b>WASD</b> to walk, <b>move the mouse</b> to look around</li>
       <li>🖱️ <b>Left-click</b> to place a block, <b>right-click</b> to break one</li>
-      <li>🔺 Pick <b>Wedge</b> (or press <b>Q</b>) for slanted 45° edges — great for roofs! Press <b>R</b> to turn it — the icon spins to show which way it faces.</li>
+      <li>🔺 Pick <b>Wedge</b> for slanted edges, <b>Round</b> for rounded tower corners, or <b>Curve</b> for smooth roofs (<b>Q</b> cycles shapes). Press <b>R</b> to turn them — the icons spin to show which way they face.</li>
       <li>🔍 The <b>Size</b> button (next to Turn) switches Full → Half → Quarter blocks — smaller blocks for tiny details! (<b>G</b> does it too)</li>
       <li>⬆️ <b>Space</b> to jump — tap it <b>twice</b> to fly!</li>
       <li>🎨 <b>Scroll</b> or press <b>1–9</b> to pick a color</li>
@@ -136,7 +138,7 @@
       <li>👆 <b>Tap the screen</b> to place a block, <b>touch and hold</b> to break one</li>
       <li>🔄 <b>Drag</b> on the screen to look around</li>
       <li>⬆️ <b>Jump</b> button hops — tap it <b>twice</b> to fly! Then hold ⬆️ to go up, ⬇️ to go down.</li>
-      <li>🔺 Tap <b>Wedge</b> for slanted 45° edges — great for roofs! <b>Turn</b> spins it — the icon shows which way it faces.</li>
+      <li>🔺 Tap <b>Wedge</b> for slanted edges, <b>Round</b> for rounded tower corners, or <b>Curve</b> for smooth roofs. <b>Turn</b> spins them — the icons show which way they face.</li>
       <li>🔍 The <b>Size</b> button (next to Turn) switches Full → Half → Quarter blocks — smaller blocks for tiny details!</li>
       <li>🎥 Prefer to spin it around? Tap <b>Camera view</b> up top</li>
       <li>🖨️ Tap <b>Print It!</b> to turn it into a real toy!</li>
@@ -193,7 +195,7 @@
       <li>🖱️ <b>Left-click</b> place a block • <b>Right-click</b> break a block • <b>Middle-click</b> copy a block</li>
       <li>⬆️ <b>Space</b> jump • tap Space <b>twice</b> to fly (Space up, Shift down)</li>
       <li>🎨 <b>Scroll wheel</b> or number keys <b>1–9, 0</b> pick a color • <b>F</b> paints the block you're looking at</li>
-      <li>🔺 <b>Q</b> switches Cube ↔ Wedge • <b>R</b> turns the block • <b>G</b> cycles Full → Half → Quarter size</li>
+      <li>🔺 <b>Q</b> cycles Cube → Wedge → Round → Curve • <b>R</b> turns the block • <b>G</b> cycles Full → Half → Quarter size</li>
       <li>🔓 <b>Esc</b> frees the mouse to use the buttons; click the world to dive back in</li>
     </ul>
     <h3>🎥 Camera view (spin around from outside)</h3>
@@ -203,8 +205,8 @@
     </ul>
     <h3>🔺 Shapes &amp; sizes (both views)</h3>
     <ul class="bullets">
-      <li>🧱 <b>Cube</b> or 🔺 <b>Wedge</b> (a 45° sloped edge) — pick from the shape bar or press <b>Q</b></li>
-      <li>🔄 <b>Turn</b> (or press <b>R</b>) spins a wedge to face any of four directions — the wedge icon spins too, so you always know which way it points</li>
+      <li>🧱 <b>Cube</b>, 🔺 <b>Wedge</b> (45° sloped edge), <b>Round</b> (rounds a corner seen from above — stack them for round towers!), or <b>Curve</b> (a wedge with a rounded slope) — pick from the shape bar or press <b>Q</b> to cycle</li>
+      <li>🔄 <b>Turn</b> (or press <b>R</b>) spins a shape to face any of four directions — the icons spin too, so you always know which way they point</li>
       <li>🔍 The <b>Size</b> button (or <b>G</b>) cycles Full → Half → Quarter for the next block — mix sizes to add fine details to big builds. Half blocks snap to a half grid, quarter blocks to a quarter grid. The button lights up when you're building small.</li>
     </ul>
     <h3>✨ Everywhere</h3>

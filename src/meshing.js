@@ -2,8 +2,11 @@
 // per-instance color), plus the printer-bed base plate and build-volume frame.
 
 import * as THREE from 'three';
-import { SIZE, HEIGHT, Q, SHAPE_CUBE, SHAPE_WEDGE } from './world.js';
+import { SIZE, HEIGHT, Q, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE } from './world.js';
 import { shapeTriangles } from './shapes.js';
+
+// Every renderable shape gets its own instanced layer.
+const SHAPE_IDS = [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE];
 
 // World is rendered centered on the origin. Block anchors are in QUARTER
 // units (see world.js): anchor (x,y,z) of size g occupies
@@ -114,12 +117,12 @@ export class WorldRenderer {
     this.paletteColors = palette.map((p) => new THREE.Color(p.hex));
     const material = new THREE.MeshLambertMaterial({ map: makeBlockTexture() });
 
-    this.layers = {
-      [SHAPE_CUBE]: new ShapeLayer(scene, shapeGeometry(SHAPE_CUBE), material),
-      [SHAPE_WEDGE]: new ShapeLayer(scene, shapeGeometry(SHAPE_WEDGE), material),
-    };
+    this.layers = {};
+    for (const shape of SHAPE_IDS) {
+      this.layers[shape] = new ShapeLayer(scene, shapeGeometry(shape), material);
+    }
     // Meshes the raycaster should test.
-    this.meshes = [this.layers[SHAPE_CUBE].mesh, this.layers[SHAPE_WEDGE].mesh];
+    this.meshes = SHAPE_IDS.map((shape) => this.layers[shape].mesh);
 
     this._m = new THREE.Matrix4();
     this._pos = new THREE.Vector3();
@@ -131,7 +134,7 @@ export class WorldRenderer {
   // Resolve a raycast hit on any layer back to its block: { q: [x,y,z], g }
   // (anchor in quarter units) or null.
   blockForHit(hit) {
-    for (const shape of [SHAPE_CUBE, SHAPE_WEDGE]) {
+    for (const shape of SHAPE_IDS) {
       const layer = this.layers[shape];
       if (hit.object === layer.mesh) return layer.indexToBlock[hit.instanceId] || null;
     }
@@ -140,17 +143,18 @@ export class WorldRenderer {
 
   update(world) {
     // Grow layer capacity first (recreating a mesh mid-fill would drop data).
-    const totals = { [SHAPE_CUBE]: 0, [SHAPE_WEDGE]: 0 };
+    const totals = {};
+    const counts = {};
+    for (const shape of SHAPE_IDS) { totals[shape] = 0; counts[shape] = 0; }
     world.forEach((x, y, z, rec) => {
       totals[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
     });
-    for (const shape of [SHAPE_CUBE, SHAPE_WEDGE]) {
+    for (const shape of SHAPE_IDS) {
       this.layers[shape].ensureCapacity(totals[shape]);
     }
     this.meshes.length = 0;
-    this.meshes.push(this.layers[SHAPE_CUBE].mesh, this.layers[SHAPE_WEDGE].mesh);
+    for (const shape of SHAPE_IDS) this.meshes.push(this.layers[shape].mesh);
 
-    const counts = { [SHAPE_CUBE]: 0, [SHAPE_WEDGE]: 0 };
     world.forEach((x, y, z, rec) => {
       const layer = this.layers[rec.s] || this.layers[SHAPE_CUBE];
       const i = counts[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
@@ -165,7 +169,7 @@ export class WorldRenderer {
       layer.mesh.setColorAt(i, this.paletteColors[rec.c] || this.paletteColors[0]);
       layer.indexToBlock[i] = { q: [x, y, z], g: rec.g };
     });
-    for (const shape of [SHAPE_CUBE, SHAPE_WEDGE]) {
+    for (const shape of SHAPE_IDS) {
       const layer = this.layers[shape];
       layer.mesh.count = counts[shape];
       layer.indexToBlock.length = counts[shape];

@@ -5,6 +5,7 @@
 // Run: node tests/stl.test.mjs
 
 import { blocksToSTL } from '../src/stl.js';
+import { shapeUnitVolume } from '../src/shapes.js';
 
 let failures = 0;
 function check(name, cond, detail = '') {
@@ -47,7 +48,8 @@ function signedVolume(tris) {
   return vol;
 }
 
-// Expected solid volume in mm^3 for a cell list: cube = full, wedge = half.
+// Expected solid volume in mm^3 for a cell list, per shape (cube 1, wedge
+// 0.5, round/curve the faceted quarter-cylinder area from shapeUnitVolume).
 // 7-element rows are quarter-unit anchors with size g (4 = full block).
 function expectedVolume(cells, mm) {
   const unit = mm ** 3;
@@ -55,7 +57,7 @@ function expectedVolume(cells, mm) {
   for (const row of cells) {
     const s = row[4] ?? 0;
     const g = row.length >= 7 ? row[6] : 4;
-    v += (s === 1 ? 0.5 : 1) * (g / 4) ** 3 * unit;
+    v += shapeUnitVolume(s) * (g / 4) ** 3 * unit;
   }
   return v;
 }
@@ -232,6 +234,33 @@ run('quarter blocks beside a full block', [
   [0, 0, 0, 0, 0, 0, 1], [1, 0, 0, 1, 0, 0, 1], [0, 0, 1, 2, 0, 0, 1], [1, 0, 1, 3, 0, 0, 1],
   [1, 0, 0, 4],
 ], 8, {});
+
+// --- Round shapes (2 = round corner, 3 = curve) ----------------------------
+
+// 16. Round corner and curve blocks, every rotation: correct faceted
+//     quarter-cylinder volume, watertight, strictly manifold when alone.
+for (const shape of [2, 3]) {
+  for (let rot = 0; rot < 4; rot++) {
+    run(`shape ${shape} rot=${rot} (10mm)`, [[0, 0, 0, 0, shape, rot]], 10, { strictManifold: true });
+  }
+}
+
+// 17. Round corner on top of a cube (tower top): the round's flat walls and
+//     the cube's faces stay sealed; no culling across the quarter-disc base.
+run('round corner on a cube (8mm)', [[5, 0, 5, 12], [5, 1, 5, 0, 2, 1]], 8, {});
+
+// 18. Curve capping a wall, like a rounded roof, plus a wedge neighbor.
+run('curved roof strip', [
+  [0, 0, 0, 12], [1, 0, 0, 12],
+  [0, 1, 0, 0, 3, 0], [1, 1, 0, 0, 1, 0],
+], 5, {});
+
+// 19. Half-size round corner (7-element quarter-unit row).
+run('half-size round corner (10mm)', [[0, 0, 0, 0, 2, 2, 2]], 10, { strictManifold: true });
+
+// 20. Two round corners stacked: same size + shape, the flat walls cull where
+//     they exactly face, everything else stays sealed.
+run('stacked round corners (6mm)', [[3, 0, 3, 1, 2, 0], [3, 1, 3, 2, 2, 0]], 6, {});
 
 console.log(failures === 0 ? '\nAll STL tests passed.' : `\n${failures} test(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);
