@@ -77,6 +77,13 @@ function check(name, cond, detail = '') {
   w3.loadArray([[2, 0, 2, 7], [2, 1, 2, 8, 1, 1]]);
   check('legacy rows land at x4 anchors', w3.getCell(8, 0, 8)?.c === 7);
   check('legacy wedge keeps shape/rot', w3.getCell(8, 4, 8)?.r === 1);
+
+  // Tipped orientations (r up to 23) round-trip through save/load.
+  const w4 = new VoxelWorld();
+  w4.set(4, 0, 4, { c: 2, s: 1, r: 17, g: 4 });
+  const w5 = new VoxelWorld();
+  w5.loadArray(w4.toArray());
+  check('tipped orientation r=17 round-trips', w5.getCell(4, 0, 4)?.r === 17);
 }
 
 // --- Floating detection ------------------------------------------------------

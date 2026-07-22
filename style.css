@@ -567,6 +567,13 @@ body.touch-device .welcome-touch { display: block; }
 .chips button:hover { transform: scale(1.05); }
 .chips button.selected { background: var(--amber); border-color: var(--ink); transform: scale(1.08); }
 
+.gallery-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
 .soft-edges {
   display: flex;
   align-items: flex-start;

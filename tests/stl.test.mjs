@@ -245,6 +245,16 @@ for (const shape of [2, 3]) {
   }
 }
 
+// 16b. Every shape in all 24 orientations (Turn + Tip): volume preserved,
+//      watertight, still inside the unit cell.
+for (const shape of [0, 1, 2, 3]) {
+  for (let rot = 4; rot < 24; rot++) {
+    run(`shape ${shape} orientation ${rot} (6mm)`, [[0, 0, 0, 0, shape, rot]], 6, {
+      strictManifold: true,
+    });
+  }
+}
+
 // 17. Round corner on top of a cube (tower top): the round's flat walls and
 //     the cube's faces stay sealed; no culling across the quarter-disc base.
 run('round corner on a cube (8mm)', [[5, 0, 5, 12], [5, 1, 5, 0, 2, 1]], 8, {});
