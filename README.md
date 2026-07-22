@@ -45,7 +45,8 @@ Click the world once to grab the mouse, then:
 | Fly | Tap **Space twice** (Space = up, Shift = down) |
 | Pick a color | **Scroll wheel** or number keys **1–9, 0** |
 | Cycle shapes (cube → wedge → round → curve) | **Q** (or the shape bar) |
-| Turn the block | **R** |
+| Turn the block (about vertical) | **R** |
+| Tip the block over (about horizontal) | **T** |
 | Cycle block size (full → half → quarter) | **G** (or the Size button in the shape bar) |
 | Paint what you're aiming at | **F** |
 | Free the mouse | **Esc** (click the world to dive back in) |
@@ -63,7 +64,9 @@ Click the world once to grab the mouse, then:
 
 | Action | How |
 | --- | --- |
-| Choose a shape | 🧱 Cube, 🔺 Wedge (45° edge), Round (rounded corner in plan view — stack for round towers), or Curve (rounded slope) — shape bar or **Q**; **R** turns them (the icons spin to show their facing) |
+| Choose a shape | 🧱 Cube, 🔺 Wedge (45° edge), Round (rounded corner in plan view — stack for round towers), or Curve (rounded slope) — shape bar or **Q** |
+| Orient a shape | **Turn** (R) spins about vertical, **Tip** (T) rolls about horizontal — together they reach all 24 axis-aligned orientations; the ghost preview shows the exact pose |
+| Back up / share designs | 📦 My Stuff → **⬇️ Design file** exports the block data as JSON; **⬆️ Open design file** imports it |
 | Choose a block size | The **Size** button in the shape bar cycles Full → Half → Quarter (**G** too) — small blocks snap to a finer grid for detail work |
 | Build symmetrically | 🦋 Mirror mode (**M**) — wedges flip to mirror too |
 | Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |
@@ -76,6 +79,10 @@ Click the world once to grab the mouse, then:
   PrusaSlicer / Cura / Bambu Studio.
 - The size chips choose the edge length of one block (3 / 5 / 8 mm); the
   dialog shows the final print size in cm. Build area is 32×32×32 blocks.
+- **✨ Soft edges** (on by default in the export dialog) bevels every exposed
+  block edge by 0.3 mm, so corners aren't sharp and block seams show as fine
+  grooves — the printed toy keeps its built-from-bricks look. Untick it for
+  flat, seamless surfaces.
 - The export dialog warns about **floating blocks** (not connected to the
   ground) — those would print as separate loose pieces — and can highlight
   them in red.

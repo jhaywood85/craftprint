@@ -34,10 +34,11 @@ function fmt(n) {
  * @param {Array} cells - rows [x, y, z, color, shape?, rot?]
  * @param {number} mm - edge length of one block, in millimeters
  * @param {string} [name] - model title
+ * @param {{bevelMM?: number}} [opts] - soft-edges bevel width (see buildMesh)
  * @returns {Uint8Array} the .3mf file bytes
  */
-export function blocksTo3MF(cells, mm, name = 'CraftPrint model') {
-  const { triangles } = buildMesh(cells, mm);
+export function blocksTo3MF(cells, mm, name = 'CraftPrint model', opts) {
+  const { triangles } = buildMesh(cells, mm, opts);
 
   // Distinct colors actually used, in first-seen order -> material indices.
   const colorOrder = [];

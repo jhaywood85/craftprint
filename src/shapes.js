@@ -160,36 +160,107 @@ export function shapeUnitVolume(shape) {
   return 1;
 }
 
-// Rotate a unit-cell point by r quarter-turns about the vertical axis, about
-// the cell center (0.5, *, 0.5). r=1 maps +X -> +Z (CCW seen from above).
-function rotPoint([x, y, z], r) {
-  let px = x - 0.5, pz = z - 0.5;
-  for (let i = 0; i < r; i++) {
-    const nx = -pz, nz = px;
-    px = nx; pz = nz;
+// --- Orientations -----------------------------------------------------------
+//
+// Blocks can face any of the 24 axis-aligned orientations. The orientation
+// index o (stored in a block's `r` field) selects a rotation matrix; indices
+// 0..3 are the legacy quarter-turns about +Y, so old saves keep their exact
+// meaning. ORIENT_YAW[o] / ORIENT_TIP[o] give the orientation reached by one
+// more GLOBAL quarter-turn about +Y (the Turn button) or +X (the Tip
+// button) — two generators that reach all 24 orientations.
+
+const I3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+const YAW3 = [[0, 0, -1], [0, 1, 0], [1, 0, 0]];  // +X -> +Z (legacy r=1)
+const TIP3 = [[1, 0, 0], [0, 0, -1], [0, 1, 0]];  // +Y -> +Z (tips the top toward +Z)
+
+const mul3 = (A, B) => A.map((row) =>
+  [0, 1, 2].map((j) => row[0] * B[0][j] + row[1] * B[1][j] + row[2] * B[2][j]));
+const eq3 = (A, B) => A.every((row, i) => row.every((v, j) => v === B[i][j]));
+
+export const ORIENTS = (() => {
+  const list = [I3];
+  for (let k = 1; k < 4; k++) list.push(mul3(YAW3, list[k - 1])); // legacy 0..3
+  for (let i = 0; i < list.length; i++) {
+    for (const G of [YAW3, TIP3]) {
+      const N = mul3(G, list[i]);
+      if (!list.some((M) => eq3(M, N))) list.push(N);
+    }
   }
-  return [px + 0.5, y, pz + 0.5];
+  return list; // exactly 24
+})();
+export const ORIENT_COUNT = ORIENTS.length;
+
+const orientIndex = (N) => ORIENTS.findIndex((M) => eq3(M, N));
+export const ORIENT_YAW = ORIENTS.map((M) => orientIndex(mul3(YAW3, M)));
+export const ORIENT_TIP = ORIENTS.map((M) => orientIndex(mul3(TIP3, M)));
+
+// Is the block the right way up (a pure yaw)? Only o = 0..3 keep +Y at +Y.
+export const orientUpright = (o) => o < 4;
+
+// Apply orientation o to a unit-cell point, rotating about the cell center.
+function orientPoint(M, [x, y, z]) {
+  const px = x - 0.5, py = y - 0.5, pz = z - 0.5;
+  return [
+    M[0][0] * px + M[0][1] * py + M[0][2] * pz + 0.5,
+    M[1][0] * px + M[1][1] * py + M[1][2] * pz + 0.5,
+    M[2][0] * px + M[2][1] * py + M[2][2] * pz + 0.5,
+  ];
 }
 
-// Rotate a whole triangle. Rotation about +Y preserves winding/orientation.
-function rotTri(tri, r) {
-  return tri.map((p) => rotPoint(p, r));
-}
+const BASE_TRIS = {
+  [SHAPE_WEDGE]: WEDGE0_TRIS,
+  [SHAPE_ROUND]: ROUND0_TRIS,
+  [SHAPE_CURVE]: CURVE0_TRIS,
+  [SHAPE_CUBE]: (() => {
+    const tris = [];
+    for (const q of CUBE_QUADS) tris.push([q[0], q[1], q[2]], [q[0], q[2], q[3]]);
+    return tris;
+  })(),
+};
 
 /**
  * Triangles for a block, in unit-cell space, wound CCW from outside.
+ * @param {number} rot - orientation index 0..23 (0..3 = legacy yaw turns)
  * @returns {Array<[number[],number[],number[]]>}
  */
 export function shapeTriangles(shape, rot = 0) {
-  if (shape === SHAPE_WEDGE) return WEDGE0_TRIS.map((t) => rotTri(t, rot));
-  if (shape === SHAPE_ROUND) return ROUND0_TRIS.map((t) => rotTri(t, rot));
-  if (shape === SHAPE_CURVE) return CURVE0_TRIS.map((t) => rotTri(t, rot));
-  // Cube: two tris per quad.
-  const tris = [];
-  for (const q of CUBE_QUADS) {
-    tris.push([q[0], q[1], q[2]], [q[0], q[2], q[3]]);
+  const base = BASE_TRIS[shape] || BASE_TRIS[SHAPE_CUBE];
+  if (!rot) return base;
+  const M = ORIENTS[rot] || I3;
+  // Proper rotations (det +1) preserve winding.
+  return base.map((t) => t.map((p) => orientPoint(M, p)));
+}
+
+/**
+ * Orientation of a block's mirror twin: mirroring across X maps an oriented
+ * shape onto (some) orientation of the same shape — every CraftPrint shape
+ * has a mirror symmetry. Found numerically by comparing vertex sets, once
+ * per shape.
+ */
+const MIRROR_TABLES = new Map();
+export function mirrorOrient(shape, o) {
+  let table = MIRROR_TABLES.get(shape);
+  if (!table) {
+    const fix = (v) => (Math.abs(v) < 5e-5 ? 0 : v).toFixed(4);
+    const sig = (oi, mirrored) => {
+      const pts = new Set();
+      for (const t of shapeTriangles(shape, oi)) {
+        for (const p of t) {
+          pts.add(`${fix(mirrored ? 1 - p[0] : p[0])},${fix(p[1])},${fix(p[2])}`);
+        }
+      }
+      return [...pts].sort().join('|');
+    };
+    const plain = [];
+    for (let i = 0; i < ORIENT_COUNT; i++) plain.push(sig(i, false));
+    table = [];
+    for (let i = 0; i < ORIENT_COUNT; i++) {
+      const j = plain.indexOf(sig(i, true));
+      table.push(j >= 0 ? j : i);
+    }
+    MIRROR_TABLES.set(shape, table);
   }
-  return tris;
+  return table[((o % ORIENT_COUNT) + ORIENT_COUNT) % ORIENT_COUNT];
 }
 
 // --- Face coverage (for neighbor culling) ---------------------------------
@@ -206,28 +277,29 @@ const ROUND0_FACES = [false, true, false, false, false, true];
 // Curve0 (horizontal): same coverage as the wedge — full -X wall, full -Y base.
 const CURVE0_FACES = [false, true, false, true, false, false];
 
-// How a face direction index maps under one CCW quarter-turn about +Y:
-// +X(0) -> +Z(4) -> -X(1) -> -Z(5) -> +X(0); vertical faces unchanged.
-const DIR_ROT = [4, 5, 2, 3, 1, 0]; // newDirIndex = DIR_ROT[oldDirIndex]
-
-function rotFaceCoverage(base, rot) {
-  let faces = base.slice();
-  for (let i = 0; i < rot; i++) {
-    const next = new Array(6);
-    for (let d = 0; d < 6; d++) next[DIR_ROT[d]] = faces[d];
-    faces = next;
-  }
-  return faces;
-}
+const BASE_FACES = {
+  [SHAPE_CUBE]: CUBE_FACES,
+  [SHAPE_WEDGE]: WEDGE0_FACES,
+  [SHAPE_ROUND]: ROUND0_FACES,
+  [SHAPE_CURVE]: CURVE0_FACES,
+};
 
 /**
  * Does this block fully cover the unit square on face-direction index `dirIdx`
  * (0..5, matching DIRS)? Only fully-covered faces are eligible for culling.
+ * The oriented block's face in world direction D is the base shape's face in
+ * direction M⁻¹·D (= Mᵀ·D, since rotations are orthogonal).
  */
 export function coversFace(shape, rot, dirIdx) {
-  const base = shape === SHAPE_WEDGE ? WEDGE0_FACES
-    : shape === SHAPE_ROUND ? ROUND0_FACES
-    : shape === SHAPE_CURVE ? CURVE0_FACES
-    : CUBE_FACES;
-  return rotFaceCoverage(base, rot)[dirIdx];
+  const base = BASE_FACES[shape] || CUBE_FACES;
+  if (!rot) return base[dirIdx];
+  const M = ORIENTS[rot] || I3;
+  const D = DIRS[dirIdx];
+  const b = [
+    M[0][0] * D[0] + M[1][0] * D[1] + M[2][0] * D[2],
+    M[0][1] * D[0] + M[1][1] * D[1] + M[2][1] * D[2],
+    M[0][2] * D[0] + M[1][2] * D[1] + M[2][2] * D[2],
+  ];
+  const baseIdx = DIRS.findIndex((d) => d[0] === b[0] && d[1] === b[1] && d[2] === b[2]);
+  return base[baseIdx];
 }

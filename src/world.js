@@ -11,8 +11,9 @@
 //   c: palette color index
 //   s: shape id (0 = full cube, 1 = wedge — a cube with one vertical edge
 //      sliced off at 45°)
-//   r: rotation, 0..3, a quarter-turn count about the vertical (y) axis.
-//      Only meaningful for shapes that aren't rotationally symmetric.
+//   r: orientation index, 0..23 (see shapes.js ORIENTS). 0..3 are the legacy
+//      quarter-turns about the vertical (y) axis; higher values are tipped
+//      orientations. Only meaningful for shapes that aren't symmetric.
 //   g: edge length in quarter units — 4 (full), 2 (half), or 1 (quarter).
 //
 // Alongside the anchor map we keep an occupancy map (every quarter cell a
@@ -42,7 +43,7 @@ function toRecord(value) {
   return {
     c: value.c ?? 0,
     s: value.s ?? SHAPE_CUBE,
-    r: ((value.r ?? 0) % 4 + 4) % 4,
+    r: ((value.r ?? 0) % 24 + 24) % 24,
     g,
   };
 }

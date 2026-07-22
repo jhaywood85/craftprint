@@ -245,6 +245,16 @@ for (const shape of [2, 3]) {
   }
 }
 
+// 16b. Every shape in all 24 orientations (Turn + Tip): volume preserved,
+//      watertight, still inside the unit cell.
+for (const shape of [0, 1, 2, 3]) {
+  for (let rot = 4; rot < 24; rot++) {
+    run(`shape ${shape} orientation ${rot} (6mm)`, [[0, 0, 0, 0, shape, rot]], 6, {
+      strictManifold: true,
+    });
+  }
+}
+
 // 17. Round corner on top of a cube (tower top): the round's flat walls and
 //     the cube's faces stay sealed; no culling across the quarter-disc base.
 run('round corner on a cube (8mm)', [[5, 0, 5, 12], [5, 1, 5, 0, 2, 1]], 8, {});
@@ -261,6 +271,67 @@ run('half-size round corner (10mm)', [[0, 0, 0, 0, 2, 2, 2]], 10, { strictManifo
 // 20. Two round corners stacked: same size + shape, the flat walls cull where
 //     they exactly face, everything else stays sealed.
 run('stacked round corners (6mm)', [[3, 0, 3, 1, 2, 0], [3, 1, 3, 2, 2, 0]], 6, {});
+
+// --- Soft edges (bevelMM option) --------------------------------------------
+
+function runBeveled(name, cells, mm, bevelMM) {
+  console.log(`\n${name}:`);
+  const { count, tris } = parseSTL(blocksToSTL(cells, mm, { bevelMM }));
+  const sharpVol = expectedVolume(cells, mm);
+  const vol = signedVolume(tris);
+  check('bevel removes a little volume (still positive winding)',
+    vol > sharpVol * 0.8 && vol < sharpVol, `(got ${vol.toFixed(3)} of ${sharpVol})`);
+  const { unbalanced, strictViolations } = manifoldReport(tris);
+  check('watertight (all directed edges paired)', unbalanced === 0, `(unbalanced=${unbalanced})`);
+  if (cells.length === 1) {
+    check('strictly manifold', strictViolations === 0, `(violations=${strictViolations})`);
+  }
+  const { min, max } = boundsOf(tris);
+  check('bevel never grows the model', min.every((v) => v > -1e-6) &&
+    max.every((v, i) => v <= boundsOf(parseSTL(blocksToSTL(cells, mm)).tris).max[i] + 1e-6));
+  return { count, vol };
+}
+
+// 21. Every shape, alone, beveled: closed, manifold, slightly smaller.
+for (const shape of [0, 1, 2, 3]) {
+  for (const rot of [0, 3]) {
+    runBeveled(`beveled shape ${shape} rot=${rot} (10mm, 0.3mm bevel)`,
+      [[0, 0, 0, 0, shape, rot]], 10, 0.3);
+  }
+}
+
+// 22. Beveled stack: two independent closed shells, combined volume is
+//     exactly twice a single beveled cube.
+{
+  const single = runBeveled('beveled single cube (8mm)', [[0, 0, 0]], 8, 0.3);
+  const pair = runBeveled('beveled stacked cubes (8mm)', [[0, 0, 0], [0, 1, 0]], 8, 0.3);
+  check('stacked beveled volume = 2x single', Math.abs(pair.vol - 2 * single.vol) < 1e-3,
+    `(${pair.vol.toFixed(3)} vs 2x${single.vol.toFixed(3)})`);
+}
+
+// 23. Small blocks clamp the bevel instead of collapsing (quarter block at
+//     3mm scale has 0.75mm edges — a 0.3mm bevel must shrink to fit).
+runBeveled('beveled quarter block at small scale', [[0, 0, 0, 0, 0, 0, 1]], 3, 0.3);
+
+// 24. Fully buried blocks are skipped: a 3x3x3 beveled solid emits shells for
+//     26 outer blocks only, and stays watertight.
+{
+  const cells = [];
+  for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) for (let z = 0; z < 3; z++) {
+    cells.push([x, y, z, 0]);
+  }
+  const solid = runBeveled('beveled 3x3x3 solid', cells, 5, 0.3);
+  const one = parseSTL(blocksToSTL([[0, 0, 0]], 5, { bevelMM: 0.3 })).count;
+  check('center block skipped', solid.count === 26 * one, `(got ${solid.count}, expected ${26 * one})`);
+}
+
+// 25. bevelMM: 0 (and omitted opts) keeps the sharp geometry byte-identical.
+{
+  console.log('\nbevel off matches sharp export:');
+  const a = new Uint8Array(blocksToSTL([[0, 0, 0], [0, 1, 0, 3, 1, 2]], 5));
+  const b = new Uint8Array(blocksToSTL([[0, 0, 0], [0, 1, 0, 3, 1, 2]], 5, { bevelMM: 0 }));
+  check('identical bytes', a.length === b.length && a.every((v, i) => v === b[i]));
+}
 
 console.log(failures === 0 ? '\nAll STL tests passed.' : `\n${failures} test(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

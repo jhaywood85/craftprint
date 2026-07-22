@@ -6,6 +6,7 @@
 // hideModeToggle }.
 
 import { PALETTE } from './palette.js';
+import { SOFT_EDGE_MM } from './geometry.js';
 import * as storage from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -116,8 +117,14 @@ export function setupUI(app, { firstRun }) {
     }
     // Spin the directional shape icons (wedge, round, curve) to show which
     // way they'll face: each Turn is a quarter turn, matching the ghost
-    // preview in the world.
-    for (const g of dirGlyphs) g.style.transform = `rotate(${app.rot * 90}deg)`;
+    // preview in the world. Tipped orientations (Tip button) tilt the icon
+    // in 3D as a "this block is on its side / upside down" cue — the ghost
+    // preview shows the exact pose.
+    const upright = app.rot < 4;
+    const tf = upright
+      ? `rotate(${app.rot * 90}deg)`
+      : `perspective(60px) rotateX(52deg) rotate(${(app.rot % 4) * 90}deg)`;
+    for (const g of dirGlyphs) g.style.transform = tf;
   }
   function selectShape(s) {
     app.setShape(s);
@@ -135,6 +142,7 @@ export function setupUI(app, { firstRun }) {
     b.addEventListener('click', () => { app.sounds.click(); selectShape(Number(b.dataset.shape)); });
   }
   $('rotateBtn').addEventListener('click', () => { app.rotate(); app.sounds.click(); });
+  $('tipBtn').addEventListener('click', () => { app.tip(); app.sounds.click(); });
   reflectShape();
 
   // ------------------------------------------------------------- block size
@@ -273,6 +281,56 @@ export function setupUI(app, { firstRun }) {
     openModal('galleryModal');
   });
 
+  // Design files: the raw block data as JSON, so creations can be backed up,
+  // shared with friends, and edited again later — unlike STL, which is only
+  // for printing.
+  $('exportDesignBtn').addEventListener('click', () => {
+    app.sounds.click();
+    if (app.world.count === 0) { toast('🙂 Build something first!'); return; }
+    const data = JSON.stringify({
+      app: 'craftprint',
+      version: 1,
+      name: app.name,
+      blocks: app.world.toArray(),
+    });
+    downloadFile(data, `${slugName()}.craftprint.json`, 'application/json');
+    app.sounds.tada();
+    toast('⬇️ Design file saved! Share it, or load it back with “Open design file”.', 4000);
+  });
+
+  const importInput = $('importDesignFile');
+  $('importDesignBtn').addEventListener('click', () => { app.sounds.click(); importInput.click(); });
+  importInput.addEventListener('change', () => {
+    const file = importInput.files && importInput.files[0];
+    importInput.value = ''; // allow re-picking the same file
+    if (!file) return;
+    file.text().then((text) => {
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+      // Accept our wrapper format or a bare block array.
+      const blocks = Array.isArray(data) ? data : data?.blocks;
+      const valid = Array.isArray(blocks) && blocks.length > 0 &&
+        blocks.every((row) => Array.isArray(row) && row.length >= 3 && row.every(Number.isFinite));
+      if (!valid) { toast('😕 That file is not a CraftPrint design.'); return; }
+      const name = (typeof data?.name === 'string' && data.name.trim())
+        ? data.name.trim().slice(0, 24) : 'Imported design';
+      const doLoad = () => {
+        app.loadCells(blocks, name);
+        nameInput.value = app.name;
+        closeModals();
+        app.sounds.tada();
+        toast(`📂 Opened “${name}”!`);
+      };
+      if (app.world.count > 0) {
+        confirmAction('📂 Open this design?',
+          `Your current build will be replaced by “${name}”. Save it first if you want to keep it!`,
+          '📂 Open', doLoad);
+      } else {
+        doLoad();
+      }
+    }).catch(() => toast('😕 Could not read that file.'));
+  });
+
   $('saveBtn').addEventListener('click', () => {
     if (app.world.count === 0) { toast('🙂 Build something first!'); return; }
     storage.addToGallery({
@@ -289,6 +347,8 @@ export function setupUI(app, { firstRun }) {
 
   // ----------------------------------------------------------------- export
   let exportMM = 5;
+  const softEdges = $('softEdges');
+  const exportOpts = () => ({ bevelMM: softEdges.checked ? SOFT_EDGE_MM : 0 });
 
   function updateExportInfo() {
     const b = app.world.bounds(); // quarter units, max exclusive
@@ -348,7 +408,7 @@ export function setupUI(app, { firstRun }) {
 
   // Color 3MF for Bambu Studio + AMS.
   $('download3mfBtn').addEventListener('click', () => {
-    const data = app.export3MF(exportMM);
+    const data = app.export3MF(exportMM, exportOpts());
     const file = `${slugName()}.3mf`;
     downloadFile(data, file, 'model/3mf');
     app.sounds.tada();
@@ -358,7 +418,7 @@ export function setupUI(app, { firstRun }) {
 
   // Plain single-color STL for any slicer.
   $('downloadBtn').addEventListener('click', () => {
-    const buffer = app.exportSTL(exportMM);
+    const buffer = app.exportSTL(exportMM, exportOpts());
     const file = `${slugName()}.stl`;
     downloadFile(buffer, file, 'model/stl');
     app.sounds.tada();
@@ -403,6 +463,7 @@ export function setupUI(app, { firstRun }) {
     // and Q while the pointer is locked; this covers the unlocked/orbit case.)
     if (app.mode === 'orbit') {
       if (e.key.toLowerCase() === 'r') { app.rotate(); app.sounds.click(); return; }
+      if (e.key.toLowerCase() === 't') { app.tip(); app.sounds.click(); return; }
       if (e.key.toLowerCase() === 'q') { toggleShape(); return; }
 
       // Tool keys only make sense in orbit mode (walk mode: RMB breaks,

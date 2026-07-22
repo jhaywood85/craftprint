@@ -17,6 +17,138 @@ import { SHAPE_CUBE, Q } from './world.js';
 
 const OPPOSITE = [1, 0, 3, 2, 5, 4]; // opposite DIRS index
 
+// Soft-edges bevel width in millimeters (a hair over one print layer). Small
+// enough that a flat 45° chamfer prints identically to a true fillet.
+export const SOFT_EDGE_MM = 0.3;
+
+// --- Soft edges (tiny bevel along every exposed block edge) -----------------
+//
+// Rounds a convex shape by "erode then dilate": every face plane is offset
+// inward by r (vertices re-solved from their three planes), then each face is
+// pushed back out along its own normal. Faces keep their original planes but
+// shrink by ~r; the gaps become 45° bevel strips along edges and small
+// triangular facets at corners. Exact for convex solids — and every CraftPrint
+// shape is convex. Each beveled block is an independent closed shell, so the
+// export stays watertight; where two blocks touch, their shrunken contact
+// faces still coincide and slicers union them, leaving a fine groove along
+// block seams (the printed model shows its bricks, like the screen does).
+
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scl = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+
+// Solve n1·x = d1, n2·x = d2, n3·x = d3 (Cramer's rule); null if degenerate.
+function solvePlanes(n1, d1, n2, d2, n3, d3) {
+  const det = dot(n1, cross(n2, n3));
+  if (Math.abs(det) < 1e-9) return null;
+  const x = add(
+    add(scl(cross(n2, n3), d1), scl(cross(n3, n1), d2)),
+    scl(cross(n1, n2), d3)
+  );
+  return scl(x, 1 / det);
+}
+
+/**
+ * Beveled triangles for a shape in unit-cell space. r is the bevel width in
+ * unit-cell units (already scaled for the block's size by the caller).
+ */
+function bevelTriangles(shape, rot, r) {
+  const tris = shapeTriangles(shape, rot);
+  const pk = (p) => `${p[0].toFixed(6)},${p[1].toFixed(6)},${p[2].toFixed(6)}`;
+
+  // Group triangles into planar faces.
+  const faces = []; // { n, d, tris }
+  const faceIds = new Map();
+  for (const t of tris) {
+    let n = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+    const len = Math.hypot(...n) || 1;
+    n = scl(n, 1 / len);
+    const d = dot(n, t[0]);
+    const k = `${n.map((v) => v.toFixed(4)).join()},${d.toFixed(4)}`;
+    let fi = faceIds.get(k);
+    if (fi === undefined) {
+      fi = faces.length;
+      faces.push({ n, d, tris: [] });
+      faceIds.set(k, fi);
+    }
+    faces[fi].tris.push(t);
+  }
+
+  // Each vertex belongs to exactly three faces in every CraftPrint shape.
+  const verts = new Map(); // pk -> { p, fs: Set<faceId> }
+  faces.forEach((f, fi) => {
+    for (const t of f.tris) {
+      for (const p of t) {
+        const k = pk(p);
+        let v = verts.get(k);
+        if (!v) { v = { p, fs: new Set() }; verts.set(k, v); }
+        v.fs.add(fi);
+      }
+    }
+  });
+
+  // Eroded vertex = intersection of its three planes, each moved inward by r.
+  const eroded = new Map();
+  for (const [k, { p, fs }] of verts) {
+    const [a, b, c] = [...fs];
+    const x = c !== undefined
+      ? solvePlanes(faces[a].n, faces[a].d - r, faces[b].n, faces[b].d - r, faces[c].n, faces[c].d - r)
+      : null;
+    eroded.set(k, x || p);
+  }
+
+  const out = [];
+  // Shrunken faces, pushed back onto their original planes.
+  for (const f of faces) {
+    for (const t of f.tris) {
+      out.push(t.map((p) => add(eroded.get(pk(p)), scl(f.n, r))));
+    }
+  }
+  // Bevel strip per shape edge (a directed edge whose reverse lives on a
+  // different face). Winding follows the face that owns the forward edge.
+  const edgeFace = new Map();
+  faces.forEach((f, fi) => {
+    for (const t of f.tris) {
+      for (let i = 0; i < 3; i++) {
+        edgeFace.set(`${pk(t[i])}|${pk(t[(i + 1) % 3])}`, fi);
+      }
+    }
+  });
+  const done = new Set();
+  for (const [k, f1] of edgeFace) {
+    if (done.has(k)) continue;
+    const [a, b] = k.split('|');
+    const rk = `${b}|${a}`;
+    const f2 = edgeFace.get(rk);
+    if (f2 === undefined || f2 === f1) continue; // interior diagonal of a face
+    done.add(k); done.add(rk);
+    const A = eroded.get(a), B = eroded.get(b);
+    // F1 owns the forward edge a→b and lies to its left (CCW from outside),
+    // so the outward-facing strip runs F1-side → F2-side along A first.
+    const o1 = scl(faces[f1].n, r), o2 = scl(faces[f2].n, r);
+    out.push(
+      [add(A, o1), add(A, o2), add(B, o2)],
+      [add(A, o1), add(B, o2), add(B, o1)]
+    );
+  }
+  // Corner facet per vertex, wound outward (positive triple product).
+  for (const [k, { fs }] of verts) {
+    if (fs.size < 3) continue;
+    const [a, b, c] = [...fs];
+    let n1 = faces[a].n, n2 = faces[b].n, n3 = faces[c].n;
+    if (dot(n1, cross(n2, n3)) < 0) { const t = n2; n2 = n3; n3 = t; }
+    const A = eroded.get(k);
+    out.push([add(A, scl(n1, r)), add(A, scl(n2, r)), add(A, scl(n3, r))]);
+  }
+  return out;
+}
+
 // Accept both row formats (see world.toArray): legacy rows in FULL-block
 // units ([x, y, z, c] / [x, y, z, c, s, r]) and 7-element rows in QUARTER
 // units [qx, qy, qz, c, s, r, g]. Returns blocks in quarter units.
@@ -52,17 +184,22 @@ function faceOfTriangle(tri) {
  * @param {Array} cells - rows [x, y, z, color, shape?, rot?] (block units) or
  *                        [qx, qy, qz, color, shape, rot, g] (quarter units)
  * @param {number} mm - edge length of one FULL block in millimeters
+ * @param {{bevelMM?: number}} [opts] - bevelMM > 0 softens every exposed
+ *   block edge with a bevel that wide (clamped per block so small blocks
+ *   keep their shape). 0 = sharp edges (default).
  * @returns {{ triangles: Array<{v:number[][], color:number}>, min:number[] }}
  *   triangles: each has 3 z-up vertices (already scaled to mm, positive octant)
  *              and the palette color index of the block it came from.
  *   min: the pre-translation minimum corner (already applied to vertices).
  */
-export function buildMesh(cells, mm) {
+export function buildMesh(cells, mm, { bevelMM = 0 } = {}) {
   const blocks = normalizeCells(cells);
   const at = new Map();
   for (const b of blocks) {
     at.set(`${b.x},${b.y},${b.z}`, b);
   }
+
+  const bevelCache = new Map(); // "s,r,rUnit" -> triangles
 
   // Collect exterior triangles in game space (block units) with their color.
   const gameTris = [];
@@ -78,9 +215,30 @@ export function buildMesh(cells, mm) {
       if (nb && nb.g === g && coversFace(nb.s, nb.r, OPPOSITE[d])) hidden[d] = true;
     }
     const scale = g / Q; // block units
-    for (const tri of shapeTriangles(s, r)) {
-      const d = faceOfTriangle(tri);
-      if (d >= 0 && hidden[d]) continue;
+
+    let tris;
+    if (bevelMM > 0) {
+      // Beveled blocks are independent closed shells, so faces can't be
+      // culled — but a block hidden on all six sides contributes nothing
+      // and is skipped outright.
+      if (hidden.every(Boolean)) continue;
+      const edgeMM = scale * mm;
+      const rUnit = Math.min(bevelMM, edgeMM * 0.12) / edgeMM; // unit-cell units
+      const key = `${s},${r},${rUnit.toFixed(5)}`;
+      tris = bevelCache.get(key);
+      if (!tris) {
+        tris = bevelTriangles(s, r, rUnit);
+        bevelCache.set(key, tris);
+      }
+    } else {
+      tris = shapeTriangles(s, r);
+    }
+
+    for (const tri of tris) {
+      if (bevelMM <= 0) {
+        const d = faceOfTriangle(tri);
+        if (d >= 0 && hidden[d]) continue;
+      }
       gameTris.push({
         v: tri.map(([cx, cy, cz]) => [x / Q + cx * scale, y / Q + cy * scale, z / Q + cz * scale]),
         color,
