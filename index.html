@@ -158,6 +158,8 @@
       <button data-mm="8">🐘 Big</button>
     </div>
     <p id="exportSize" class="size-note"></p>
+    <label class="soft-edges"><input type="checkbox" id="softEdges" checked>
+      ✨ Soft edges — a tiny bevel along every block edge, so corners aren't sharp and the bricks show</label>
     <div id="floatWarning" class="warning hidden">
       ⚠️ <span id="floatCount"></span>
       <button id="showFloating" class="btn small">👀 Show me</button>
@@ -217,6 +219,7 @@
     <h3>👨‍🔧 For grown-ups: printing tips</h3>
     <ul class="bullets small-text">
       <li>“Print It!” downloads a watertight binary STL, already rotated Z-up and sitting on the bed — drop it straight into your slicer.</li>
+      <li><b>✨ Soft edges</b> adds a tiny (0.3 mm) bevel along every exposed block edge — corners print less sharp, and block seams show as fine grooves so the model keeps its built-from-bricks look. Turn it off for perfectly flat, seamless surfaces.</li>
       <li>The size chips set the edge length of one block (3 / 5 / 8 mm). The dialog shows the final printed size in cm.</li>
       <li>Floating blocks (not connected to the ground) print as separate loose pieces — the export dialog warns about them and can highlight them.</li>
       <li>Big overhangs may need supports in your slicer, just like any print.</li>

@@ -567,6 +567,16 @@ body.touch-device .welcome-touch { display: block; }
 .chips button:hover { transform: scale(1.05); }
 .chips button.selected { background: var(--amber); border-color: var(--ink); transform: scale(1.08); }
 
+.soft-edges {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.soft-edges input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--amber); flex-shrink: 0; }
+
 .size-note { font-size: 17px; font-weight: bold; margin: 6px 0 14px; }
 
 .warning {

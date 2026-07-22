@@ -9,10 +9,11 @@ import { buildMesh } from './geometry.js';
 /**
  * @param {Array} cells - rows [x, y, z, color, shape?, rot?]
  * @param {number} mm - edge length of one block, in millimeters
+ * @param {{bevelMM?: number}} [opts] - soft-edges bevel width (see buildMesh)
  * @returns {ArrayBuffer} binary STL file contents
  */
-export function blocksToSTL(cells, mm) {
-  const { triangles } = buildMesh(cells, mm);
+export function blocksToSTL(cells, mm, opts) {
+  const { triangles } = buildMesh(cells, mm, opts);
 
   const buffer = new ArrayBuffer(84 + triangles.length * 50);
   const view = new DataView(buffer);

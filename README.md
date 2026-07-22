@@ -76,6 +76,10 @@ Click the world once to grab the mouse, then:
   PrusaSlicer / Cura / Bambu Studio.
 - The size chips choose the edge length of one block (3 / 5 / 8 mm); the
   dialog shows the final print size in cm. Build area is 32×32×32 blocks.
+- **✨ Soft edges** (on by default in the export dialog) bevels every exposed
+  block edge by 0.3 mm, so corners aren't sharp and block seams show as fine
+  grooves — the printed toy keeps its built-from-bricks look. Untick it for
+  flat, seamless surfaces.
 - The export dialog warns about **floating blocks** (not connected to the
   ground) — those would print as separate loose pieces — and can highlight
   them in red.

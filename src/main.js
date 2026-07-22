@@ -179,12 +179,12 @@ const app = {
     this.refresh();
   },
 
-  exportSTL(mm) {
-    return blocksToSTL(world.toArray(), mm);
+  exportSTL(mm, opts) {
+    return blocksToSTL(world.toArray(), mm, opts);
   },
 
-  export3MF(mm) {
-    return blocksTo3MF(world.toArray(), mm, this.name);
+  export3MF(mm, opts) {
+    return blocksTo3MF(world.toArray(), mm, this.name, opts);
   },
 
   captureThumbnail() {

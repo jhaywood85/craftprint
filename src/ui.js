@@ -6,6 +6,7 @@
 // hideModeToggle }.
 
 import { PALETTE } from './palette.js';
+import { SOFT_EDGE_MM } from './geometry.js';
 import * as storage from './storage.js';
 
 const $ = (id) => document.getElementById(id);
@@ -289,6 +290,8 @@ export function setupUI(app, { firstRun }) {
 
   // ----------------------------------------------------------------- export
   let exportMM = 5;
+  const softEdges = $('softEdges');
+  const exportOpts = () => ({ bevelMM: softEdges.checked ? SOFT_EDGE_MM : 0 });
 
   function updateExportInfo() {
     const b = app.world.bounds(); // quarter units, max exclusive
@@ -348,7 +351,7 @@ export function setupUI(app, { firstRun }) {
 
   // Color 3MF for Bambu Studio + AMS.
   $('download3mfBtn').addEventListener('click', () => {
-    const data = app.export3MF(exportMM);
+    const data = app.export3MF(exportMM, exportOpts());
     const file = `${slugName()}.3mf`;
     downloadFile(data, file, 'model/3mf');
     app.sounds.tada();
@@ -358,7 +361,7 @@ export function setupUI(app, { firstRun }) {
 
   // Plain single-color STL for any slicer.
   $('downloadBtn').addEventListener('click', () => {
-    const buffer = app.exportSTL(exportMM);
+    const buffer = app.exportSTL(exportMM, exportOpts());
     const file = `${slugName()}.stl`;
     downloadFile(buffer, file, 'model/stl');
     app.sounds.tada();
