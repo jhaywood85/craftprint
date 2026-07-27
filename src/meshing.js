@@ -3,10 +3,20 @@
 
 import * as THREE from 'three';
 import { SIZE, HEIGHT, Q, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE } from './world.js';
-import { shapeTriangles } from './shapes.js';
+import { shapeTriangles, ORIENTS } from './shapes.js';
 
 // Every renderable shape gets its own instanced layer.
 const SHAPE_IDS = [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE];
+
+// One quaternion per orientation index, shared with the ghost preview so the
+// preview always matches what gets placed (and exported).
+export const ORIENT_QUATS = ORIENTS.map((M) =>
+  new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().set(
+    M[0][0], M[0][1], M[0][2], 0,
+    M[1][0], M[1][1], M[1][2], 0,
+    M[2][0], M[2][1], M[2][2], 0,
+    0, 0, 0, 1
+  )));
 
 // World is rendered centered on the origin. Block anchors are in QUARTER
 // units (see world.js): anchor (x,y,z) of size g occupies
@@ -160,9 +170,7 @@ export class WorldRenderer {
       const i = counts[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
       const size = rec.g / Q; // edge length in world units
       this._pos.set((x + rec.g / 2) / Q - OFF, (y + rec.g / 2) / Q, (z + rec.g / 2) / Q - OFF);
-      // r=1 turns +X -> +Z (CCW seen from above) to match the exporter, which
-      // is a rotation of -r*90° about +Y in three.js's right-handed frame.
-      this._quat.setFromAxisAngle(this._axis, -rec.r * Math.PI / 2);
+      this._quat.copy(ORIENT_QUATS[rec.r] || ORIENT_QUATS[0]);
       this._scale.set(size, size, size);
       this._m.compose(this._pos, this._quat, this._scale);
       layer.mesh.setMatrixAt(i, this._m);

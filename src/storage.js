@@ -3,6 +3,7 @@
 const CURRENT = 'craftprint.current';
 const GALLERY = 'craftprint.gallery';
 const SETTINGS = 'craftprint.settings';
+const CLASSROOM = 'craftprint.classroom';
 
 function read(key, fallback) {
   try {
@@ -37,6 +38,11 @@ export function addToGallery(item) {
   while (!write(GALLERY, gallery) && gallery.length > 1) gallery.pop();
   return gallery;
 }
+
+// Classroom state: { server } plus either { code, student } (a student who
+// joined) or { code, teacherKey, teacherName } (the teacher who made it).
+export function loadClassroom() { return read(CLASSROOM, {}); }
+export function saveClassroom(c) { return write(CLASSROOM, c); }
 
 export function removeFromGallery(id) {
   const gallery = getGallery().filter((g) => g.id !== id);

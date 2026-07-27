@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { VoxelWorld, SIZE, HEIGHT, Q, QSIZE, QHEIGHT, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE } from './world.js';
-import { WorldRenderer, addBed, addBuildVolume, OFF } from './meshing.js';
-import { shapeTriangles } from './shapes.js';
+import { WorldRenderer, addBed, addBuildVolume, OFF, ORIENT_QUATS } from './meshing.js';
+import { shapeTriangles, mirrorOrient, ORIENT_YAW, ORIENT_TIP } from './shapes.js';
 import { PALETTE } from './palette.js';
 import { Sounds } from './sounds.js';
 import { UndoStack } from './undo.js';
@@ -118,7 +118,7 @@ const app = {
   tool: 'build',      // orbit-mode tool: 'build' | 'erase' | 'paint'
   colorIndex: 0,
   shape: SHAPE_CUBE,  // 0 = cube, 1 = wedge, 2 = round corner, 3 = curve
-  rot: 0,             // 0..3 quarter-turns for the block being placed
+  rot: 0,             // orientation index 0..23 for the block being placed
   gsize: Q,           // placement size in quarter units: 4 full, 2 half, 1 quarter
   mirror: false,
   name: 'My Creation',
@@ -129,9 +129,14 @@ const app = {
   setColor(i) { this.colorIndex = i; updateGhostFromLast(); },
   setShape(s) { this.shape = s; updateGhostFromLast(); },
   setGsize(g) { this.gsize = g; updateGhostFromLast(); },
-  rotate() {
-    this.rot = (this.rot + 1) % 4;
-    this.ui?.reflectShape(); // spins the wedge direction indicator
+  rotate() { // Turn: global quarter-turn about the vertical axis
+    this.rot = ORIENT_YAW[this.rot];
+    this.ui?.reflectShape(); // spins the shape direction indicators
+    updateGhostFromLast();
+  },
+  tip() { // Tip: global quarter-turn about the horizontal (X) axis
+    this.rot = ORIENT_TIP[this.rot];
+    this.ui?.reflectShape();
     updateGhostFromLast();
   },
 
@@ -179,12 +184,12 @@ const app = {
     this.refresh();
   },
 
-  exportSTL(mm) {
-    return blocksToSTL(world.toArray(), mm);
+  exportSTL(mm, opts) {
+    return blocksToSTL(world.toArray(), mm, opts);
   },
 
-  export3MF(mm) {
-    return blocksTo3MF(world.toArray(), mm, this.name);
+  export3MF(mm, opts) {
+    return blocksTo3MF(world.toArray(), mm, this.name, opts);
   },
 
   captureThumbnail() {
@@ -376,18 +381,10 @@ function sameRecord(a, b) {
   return a.c === b.c && a.s === b.s && a.r === b.r && a.g === b.g;
 }
 
-// A shape's facing when its cell is mirrored across the X axis.
-// Wedge/Curve (wall faces -X,-Z,+X,+Z for r=0..3): ±X facings swap (0↔2),
-// ±Z facings are unchanged. Round (solid corner at -X-Z, +X-Z, +X+Z, -X+Z
-// for r=0..3): the corner flips across X, so 0↔1 and 2↔3. Cubes are
-// symmetric, so their rotation never matters.
-function mirrorRot(shape, rot) {
-  if (shape === SHAPE_WEDGE || shape === SHAPE_CURVE) {
-    return rot === 0 ? 2 : rot === 2 ? 0 : rot;
-  }
-  if (shape === SHAPE_ROUND) return [1, 0, 3, 2][rot];
-  return rot;
-}
+// A shape's orientation when its cell is mirrored across the X axis —
+// computed per shape from the geometry itself (shapes.js), covering all 24
+// orientations.
+const mirrorRot = (shape, rot) => mirrorOrient(shape, rot);
 
 // Anchor (quarter units) for a new g-sized block placed against a hit face.
 // Along the face normal the block sits just past the face plane, snapped to
@@ -532,7 +529,7 @@ function showGhosts(regions, tool) {
       gh.material.color.set(color);
       gh.scale.setScalar(g / Q);
       gh.position.set((x + g / 2) / Q - OFF, (y + g / 2) / Q, (z + g / 2) / Q - OFF);
-      gh.rotation.set(0, -rot * Math.PI / 2, 0);
+      gh.quaternion.copy(ORIENT_QUATS[rot] || ORIENT_QUATS[0]);
     } else {
       gh.visible = false;
     }
@@ -720,7 +717,8 @@ window.addEventListener('keydown', (e) => {
     lastSpaceTap = now;
   }
   if (e.code === 'KeyF' && !e.repeat) walkPaint();
-  if (e.code === 'KeyR' && !e.repeat) { app.rotate(); app.ui?.reflectShape(); sounds.click(); }
+  if (e.code === 'KeyR' && !e.repeat) { app.rotate(); sounds.click(); }
+  if (e.code === 'KeyT' && !e.repeat) { app.tip(); sounds.click(); }
   if (e.code === 'KeyQ' && !e.repeat) { app.ui?.toggleShape(); }
   if (e.code === 'KeyG' && !e.repeat) { app.ui?.cycleSize(); }
 });

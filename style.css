@@ -567,6 +567,83 @@ body.touch-device .welcome-touch { display: block; }
 .chips button:hover { transform: scale(1.05); }
 .chips button.selected { background: var(--amber); border-color: var(--ink); transform: scale(1.08); }
 
+/* --------------------------------------------------------------- classroom */
+
+.class-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 10px 0;
+}
+.class-input {
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 16px;
+  background: var(--paper);
+  min-width: 0;
+}
+.class-input.code {
+  width: 110px;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  font-weight: bold;
+  text-align: center;
+}
+.class-input.wide { flex: 1; min-width: 220px; font-size: 13px; }
+
+.class-teacher-setup { margin-top: 16px; }
+.class-teacher-setup summary { cursor: pointer; font-weight: bold; }
+
+.class-code-banner {
+  font-size: 20px;
+  text-align: center;
+  background: var(--amber);
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  padding: 10px;
+  margin: 8px 0 12px;
+}
+.class-code-banner b { font-size: 28px; letter-spacing: 6px; }
+
+.button-row.wrap { flex-wrap: wrap; }
+
+.class-designs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.class-card {
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--paper);
+}
+.class-card-name { font-weight: bold; margin-bottom: 2px; }
+.class-card-meta { font-size: 13px; opacity: 0.7; margin-bottom: 8px; }
+
+.gallery-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.soft-edges {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.soft-edges input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--amber); flex-shrink: 0; }
+
 .size-note { font-size: 17px; font-weight: bold; margin: 6px 0 14px; }
 
 .warning {
