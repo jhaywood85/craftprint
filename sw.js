@@ -6,7 +6,7 @@
 // launches are instant and work with no network — ideal for a home-screen
 // app on a kid's tablet.
 
-const CACHE = 'craftprint-v19';
+const CACHE = 'craftprint-v20';
 
 const ASSETS = [
   './',
@@ -14,6 +14,7 @@ const ASSETS = [
   './style.css',
   './manifest.webmanifest',
   './src/main.js',
+  './src/classroom.js',
   './src/geometry.js',
   './src/meshing.js',
   './src/palette.js',
@@ -55,6 +56,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
+  // Classroom API calls are live data — never serve them from cache.
+  if (new URL(request.url).pathname.includes('/api/')) return;
 
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {

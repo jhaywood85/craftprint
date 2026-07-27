@@ -79,6 +79,7 @@
   <input id="creationName" class="name-input" maxlength="24" spellcheck="false" aria-label="Creation name">
   <div class="top-actions">
     <button id="modeBtn" class="btn" title="Switch view">🎥 Camera view</button>
+    <button id="classBtn" class="btn icon" title="Class — join your teacher's room or run one">🏫</button>
     <button id="soundBtn" class="btn icon" title="Sound on / off">🔊</button>
     <button id="helpBtn" class="btn icon" title="Help">❓</button>
     <button id="galleryBtn" class="btn" title="Saved creations">📦 My Stuff</button>
@@ -185,6 +186,55 @@
     <div id="galleryGrid" class="gallery-grid"></div>
   </div>
 
+  <div id="classModal" class="modal wide hidden">
+    <button class="modal-x" data-close aria-label="Close">✕</button>
+    <h2>🏫 Class</h2>
+
+    <!-- Not in a class yet: join, or (grown-ups) create/configure -->
+    <div id="classJoinView">
+      <p class="lead">Type the room code from the board and your first name to hand in your build for 3D printing!</p>
+      <div class="class-row">
+        <input id="classCode" class="class-input code" maxlength="5" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
+        <input id="classStudent" class="class-input" maxlength="24" placeholder="Your first name" autocomplete="off" aria-label="Your first name">
+        <button id="classJoinBtn" class="btn primary">🎒 Join</button>
+      </div>
+      <details class="class-teacher-setup">
+        <summary>🍎 For teachers &amp; grown-ups</summary>
+        <p class="fine">Create a room, write the code on the board, and collect every student's design from one screen — ready to 3D print. Needs the free classroom server: see <b>server/README.md</b> in the CraftPrint project (5-minute setup), then paste its address here.</p>
+        <div class="class-row">
+          <input id="classServer" class="class-input wide" placeholder="https://craftprint-class.yourname.workers.dev" autocomplete="off" spellcheck="false" aria-label="Classroom server address">
+          <button id="classServerSave" class="btn small">Save</button>
+        </div>
+        <div class="class-row">
+          <input id="classTeacherName" class="class-input" maxlength="40" placeholder="Class name (e.g. Ms. Lee, Grade 3)" autocomplete="off" aria-label="Class name">
+          <button id="classCreateBtn" class="btn">🍎 Create a class</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- Student view: joined a room -->
+    <div id="classStudentView" class="hidden">
+      <p id="classStudentInfo" class="lead"></p>
+      <div class="button-row">
+        <button id="classHandInBtn" class="btn primary big">🖐 Hand in my build</button>
+        <button id="classLeaveBtn" class="btn">👋 Leave class</button>
+      </div>
+      <p class="fine">Hand in as many times as you like — your teacher always gets your newest version.</p>
+    </div>
+
+    <!-- Teacher view: running a room -->
+    <div id="classTeacherView" class="hidden">
+      <p class="class-code-banner">Room code: <b id="classCodeBig"></b></p>
+      <div class="button-row wrap">
+        <button id="classRefreshBtn" class="btn">🔄 Refresh</button>
+        <button id="classZipDesignsBtn" class="btn">⬇️ All design files</button>
+        <button id="classZipSTLBtn" class="btn primary">🖨️ All print files</button>
+        <button id="classTeacherLeaveBtn" class="btn danger small">Close on this device</button>
+      </div>
+      <div id="classDesigns" class="class-designs"></div>
+    </div>
+  </div>
+
   <div id="confirmModal" class="modal hidden">
     <h2 id="confirmTitle"></h2>
     <p id="confirmBody"></p>
@@ -222,6 +272,7 @@
       <li>🦋 <b>Mirror</b> (M): build both sides at once — wedges flip to mirror too, great for roofs and ships!</li>
       <li>↩️ <b>Ctrl+Z</b> undo, <b>Ctrl+Shift+Z</b> redo • 📦 <b>My Stuff</b> saves your builds</li>
       <li>💾 In <b>My Stuff</b>, <b>⬇️ Design file</b> downloads your build as a file you can keep, share with friends, or move to another device — <b>⬆️ Open design file</b> loads it back in, ready to edit (unlike the printed STL, a design file keeps all the blocks)</li>
+      <li>🏫 <b>Class</b> (top bar): students type the room code from the board and their first name, build, then <b>🖐 Hand in</b> — the teacher collects every design on one screen and downloads them all, ready to 3D print. No accounts or passwords, just first names.</li>
     </ul>
     <h3>👨‍🔧 For grown-ups: printing tips</h3>
     <ul class="bullets small-text">
@@ -232,6 +283,7 @@
       <li>Big overhangs may need supports in your slicer, just like any print.</li>
       <li>Colors are for fun on screen — the STL is a single solid. Pause-at-height still works great for layered color!</li>
       <li>Everything is saved in this browser automatically (plus 📦 My Stuff for keepers). No internet needed.</li>
+      <li>🏫 <b>Class</b> mode needs a one-time free server setup (5 minutes) — see <b>server/README.md</b> in the CraftPrint project, then paste the server address under 🏫 → “For teachers &amp; grown-ups”.</li>
     </ul>
   </div>
 

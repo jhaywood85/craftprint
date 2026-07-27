@@ -1,0 +1,11 @@
+# Cloudflare Worker config for the CraftPrint Classroom server.
+# See README.md in this folder for the full deploy guide.
+name = "craftprint-class"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Created by:  npx wrangler kv namespace create ROOMS
+# Paste the id it prints below.
+[[kv_namespaces]]
+binding = "ROOMS"
+id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"

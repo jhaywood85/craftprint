@@ -7,7 +7,10 @@
 
 import { PALETTE } from './palette.js';
 import { SOFT_EDGE_MM } from './geometry.js';
+import { blocksToSTL } from './stl.js';
+import { makeZip } from './zip.js';
 import * as storage from './storage.js';
+import * as classroom from './classroom.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -343,6 +346,194 @@ export function setupUI(app, { firstRun }) {
     app.sounds.tada();
     renderGallery();
     toast(`📸 Saved “${app.name}” to My Stuff!`);
+  });
+
+  // -------------------------------------------------------------- classroom
+  // Room codes: students join a teacher's room and hand in builds; the
+  // teacher collects them all from one screen. See src/classroom.js and
+  // server/README.md.
+  const classViews = {
+    join: $('classJoinView'),
+    student: $('classStudentView'),
+    teacher: $('classTeacherView'),
+  };
+  function showClassView(which) {
+    for (const [k, el] of Object.entries(classViews)) el.classList.toggle('hidden', k !== which);
+  }
+
+  function classErrText(e) {
+    const m = String(e?.message || e);
+    if (m === 'no-server') return '🍎 Ask a grown-up to set up the class server first (server/README.md)!';
+    if (m === 'offline') return '📡 Could not reach the class server — check the internet connection.';
+    if (m.includes('room not found')) return '🤔 That room code doesn’t exist — check the board!';
+    if (m.includes('room is full')) return '😅 The room is full — tell your teacher!';
+    return `😕 Class problem: ${m}`;
+  }
+
+  const fileSlug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'design';
+
+  let classDesignsCache = [];
+
+  function renderClassModal() {
+    const st = classroom.getState();
+    $('classServer').value = st.server || '';
+    if (st.code && st.teacherKey) {
+      showClassView('teacher');
+      $('classCodeBig').textContent = st.code;
+      refreshClassDesigns();
+    } else if (st.code && st.student) {
+      showClassView('student');
+      $('classStudentInfo').textContent =
+        `🎒 You're in ${st.teacher || 'your teacher'}'s class (room ${st.code}) as ${st.student}.`;
+    } else {
+      showClassView('join');
+    }
+  }
+
+  $('classBtn').addEventListener('click', () => {
+    app.sounds.click();
+    renderClassModal();
+    openModal('classModal');
+  });
+
+  $('classServerSave').addEventListener('click', () => {
+    app.sounds.click();
+    const server = $('classServer').value.trim();
+    classroom.setState({ ...classroom.getState(), server });
+    toast(server ? '✅ Class server saved on this device!' : 'Class server cleared');
+  });
+
+  $('classJoinBtn').addEventListener('click', async () => {
+    app.sounds.click();
+    const code = $('classCode').value.trim().toUpperCase();
+    const student = $('classStudent').value.trim();
+    if (code.length < 4 || !student) { toast('🙂 Type the room code AND your first name!'); return; }
+    try {
+      const info = await classroom.checkRoom(code);
+      classroom.setState({ ...classroom.getState(), code, student, teacher: info.teacher, teacherKey: undefined });
+      app.sounds.tada();
+      renderClassModal();
+      toast(`🎒 You joined ${info.teacher}'s class!`);
+    } catch (e) { toast(classErrText(e)); }
+  });
+
+  $('classHandInBtn').addEventListener('click', async () => {
+    app.sounds.click();
+    if (app.world.count === 0) { toast('🙂 Build something first, then hand it in!'); return; }
+    const st = classroom.getState();
+    try {
+      await classroom.handIn(st.code, { student: st.student, name: app.name, blocks: app.world.toArray() });
+      app.sounds.tada();
+      toast(`🖐 Handed in “${app.name}”! Your teacher has it now.`, 4000);
+    } catch (e) { toast(classErrText(e)); }
+  });
+
+  $('classLeaveBtn').addEventListener('click', () => {
+    app.sounds.click();
+    classroom.setState({ server: classroom.getState().server });
+    renderClassModal();
+  });
+
+  $('classCreateBtn').addEventListener('click', async () => {
+    app.sounds.click();
+    try {
+      const teacher = $('classTeacherName').value.trim() || 'My class';
+      const room = await classroom.createRoom(teacher);
+      classroom.setState({
+        ...classroom.getState(),
+        code: room.code, teacherKey: room.teacherKey, teacher, student: undefined,
+      });
+      app.sounds.tada();
+      renderClassModal();
+      toast(`🍎 Class created! Room code: ${room.code} — write it on the board.`, 5000);
+    } catch (e) { toast(classErrText(e)); }
+  });
+
+  $('classTeacherLeaveBtn').addEventListener('click', () => {
+    confirmAction(
+      '👋 Close this class here?',
+      'This device will forget the room and its teacher key, so you won’t be able to collect these hand-ins again. Download everything first!',
+      '👋 Close it',
+      () => { classroom.setState({ server: classroom.getState().server }); renderClassModal(); }
+    );
+  });
+
+  async function refreshClassDesigns() {
+    const st = classroom.getState();
+    const grid = $('classDesigns');
+    grid.innerHTML = '<p class="empty">Loading…</p>';
+    try {
+      const { designs } = await classroom.listDesigns(st.code, st.teacherKey);
+      classDesignsCache = designs;
+      grid.innerHTML = '';
+      if (designs.length === 0) {
+        grid.innerHTML = '<p class="empty">Nothing handed in yet. Students: 🏫 → type the room code + first name → 🖐 Hand in!</p>';
+        return;
+      }
+      for (const d of designs) {
+        const card = document.createElement('div');
+        card.className = 'class-card';
+        const title = document.createElement('div');
+        title.className = 'class-card-name';
+        title.textContent = `${d.student} — “${d.name}”`;
+        const meta = document.createElement('div');
+        meta.className = 'class-card-meta';
+        meta.textContent = `🧱 ${d.blocks.length} blocks`;
+        const row = document.createElement('div');
+        row.className = 'gallery-actions';
+        const openB = document.createElement('button');
+        openB.className = 'btn small';
+        openB.textContent = '👀 Open';
+        openB.addEventListener('click', () => {
+          const doLoad = () => {
+            app.loadCells(d.blocks, d.name);
+            nameInput.value = app.name;
+            closeModals();
+            toast(`👀 Looking at ${d.student}'s “${d.name}”`);
+          };
+          if (app.world.count > 0) {
+            confirmAction('👀 Open this build?', `Your current build will be replaced by ${d.student}'s “${d.name}”. Save yours first if you need it!`, '👀 Open', doLoad);
+          } else doLoad();
+        });
+        const stlB = document.createElement('button');
+        stlB.className = 'btn small';
+        stlB.textContent = '🖨️ STL';
+        stlB.addEventListener('click', () => {
+          downloadFile(blocksToSTL(d.blocks, exportMM, exportOpts()),
+            `${fileSlug(d.student)}-${fileSlug(d.name)}.stl`, 'model/stl');
+        });
+        row.append(openB, stlB);
+        card.append(title, meta, row);
+        grid.appendChild(card);
+      }
+    } catch (e) {
+      grid.innerHTML = '<p class="empty">Could not load hand-ins.</p>';
+      toast(classErrText(e));
+    }
+  }
+  $('classRefreshBtn').addEventListener('click', () => { app.sounds.click(); refreshClassDesigns(); });
+
+  $('classZipDesignsBtn').addEventListener('click', () => {
+    app.sounds.click();
+    if (classDesignsCache.length === 0) { toast('🙂 Nothing handed in yet!'); return; }
+    const zip = makeZip(classDesignsCache.map((d) => ({
+      name: `${fileSlug(d.student)}-${fileSlug(d.name)}.craftprint.json`,
+      data: JSON.stringify({ app: 'craftprint', version: 1, name: d.name, blocks: d.blocks }),
+    })));
+    downloadFile(zip, `class-${classroom.getState().code}-designs.zip`, 'application/zip');
+    app.sounds.tada();
+  });
+
+  $('classZipSTLBtn').addEventListener('click', () => {
+    app.sounds.click();
+    if (classDesignsCache.length === 0) { toast('🙂 Nothing handed in yet!'); return; }
+    const zip = makeZip(classDesignsCache.map((d) => ({
+      name: `${fileSlug(d.student)}-${fileSlug(d.name)}.stl`,
+      data: new Uint8Array(blocksToSTL(d.blocks, exportMM, exportOpts())),
+    })));
+    downloadFile(zip, `class-${classroom.getState().code}-print-files.zip`, 'application/zip');
+    app.sounds.tada();
+    toast(`🖨️ ${classDesignsCache.length} print file${classDesignsCache.length > 1 ? 's' : ''} zipped — drop the STLs in your slicer!`, 4500);
   });
 
   // ----------------------------------------------------------------- export
