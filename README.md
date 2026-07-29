@@ -44,6 +44,7 @@ Click the world once to grab the mouse, then:
 | Jump | **Space** |
 | Fly | Tap **Space twice** (Space = up, Shift = down) |
 | Pick a color | **Scroll wheel** or number keys **1–9, 0** |
+| Pick a shape directly | **Z / X / C / V** = Cube / Wedge / Round / Curve |
 | Cycle shapes (cube → wedge → round → curve) | **Q** (or the shape bar) |
 | Turn the block (about vertical) | **R** |
 | Tip the block over (about horizontal) | **T** |

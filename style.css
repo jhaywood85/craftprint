@@ -404,6 +404,28 @@ body.walk-mode:not(.locked):not(.modal-open):not(.touch-walk) .lock-hint { displ
 .shape.selected { background: var(--amber); transform: scale(1.05); }
 .shape.selected:active { transform: scale(1.01) translateY(2px); }
 
+/* Keyboard shortcut badges on buttons. Hidden on touch devices, where they
+   would just be noise. */
+.tool, .shape, .swatch { position: relative; }
+.key-hint {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+.swatch .key-hint { top: auto; bottom: -5px; right: -3px; }
+body.touch-device .key-hint { display: none; }
+
 /* Direction indicators (wedge / round / curve): the icons spin with the Turn
    button so kids can see which way the shape will face before placing. */
 .dir-glyph {
