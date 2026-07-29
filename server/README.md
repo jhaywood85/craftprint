@@ -36,9 +36,18 @@ free tier handles far more than a classroom will ever use.
    It prints your server address, something like
    `https://craftprint-class.yourname.workers.dev`.
 
-5. In CraftPrint, open **🏫 Class → For grown-ups**, paste that address, and
-   press Save. Done — Create a class / Join a class now work on every device
-   pointed at that address.
+5. In CraftPrint, open **🏫 Class → 🍎 I'm a teacher → ⚙️ Server**, paste
+   that address, and press **Save & check** — it verifies the server
+   instantly. Done.
+
+Students never touch any of this: the teacher's Class screen shows a QR
+code / join link that carries the room code *and* server address, so
+student tablets configure themselves the moment they scan it.
+
+**Tip for schools:** to make the server the built-in default for everyone
+using your copy of the app (so even the QR isn't needed for setup), put the
+address in `DEFAULT_SERVER` at the top of `src/classroom.js` and redeploy
+the site.
 
 ## Try it locally first (optional)
 

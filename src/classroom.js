@@ -8,6 +8,12 @@
 
 import * as storage from './storage.js';
 
+// Bake your deployed server address here (e.g. after `wrangler deploy`) and
+// every device using this copy of the app gets Classroom with zero setup.
+// Teachers can still point an individual device elsewhere in the Class
+// screen, and join links/QR codes carry the address regardless.
+export const DEFAULT_SERVER = '';
+
 export function getState() {
   return storage.loadClassroom() || {};
 }
@@ -18,7 +24,24 @@ export function setState(next) {
 }
 
 export function serverURL() {
-  return (getState().server || '').trim().replace(/\/+$/, '');
+  return (getState().server || DEFAULT_SERVER || '').trim().replace(/\/+$/, '');
+}
+
+// The link students open (or scan from the board) to join in one tap: it
+// carries the room code AND the server address, so student devices need no
+// setup at all.
+export function joinURL(code) {
+  const app = `${location.origin}${location.pathname}`;
+  const params = new URLSearchParams({ class: code });
+  const server = serverURL();
+  if (server && server !== DEFAULT_SERVER) params.set('server', server);
+  return `${app}?${params}`;
+}
+
+// Quick "is this really a classroom server?" probe for the setup screen.
+export async function health() {
+  const data = await api('/health');
+  return data?.service === 'craftprint-class';
 }
 
 async function api(path, { method = 'GET', body, teacherKey } = {}) {

@@ -190,26 +190,35 @@
     <button class="modal-x" data-close aria-label="Close">✕</button>
     <h2>🏫 Class</h2>
 
-    <!-- Not in a class yet: join, or (grown-ups) create/configure -->
+    <!-- Not in a class yet: a kid-first join screen. Teacher machinery lives
+         in its own view behind the "I'm a teacher" link. -->
     <div id="classJoinView">
-      <p class="lead">Type the room code from the board and your first name to hand in your build for 3D printing!</p>
-      <div class="class-row">
+      <p class="lead">Scan your teacher's code with the camera — or type the room code from the board and your first name!</p>
+      <div class="class-row center">
         <input id="classCode" class="class-input code" maxlength="5" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code">
         <input id="classStudent" class="class-input" maxlength="24" placeholder="Your first name" autocomplete="off" aria-label="Your first name">
-        <button id="classJoinBtn" class="btn primary">🎒 Join</button>
+        <button id="classJoinBtn" class="btn primary big">🎒 Join</button>
       </div>
-      <details class="class-teacher-setup">
-        <summary>🍎 For teachers &amp; grown-ups</summary>
-        <p class="fine">Create a room, write the code on the board, and collect every student's design from one screen — ready to 3D print. Needs the free classroom server: see <b>server/README.md</b> in the CraftPrint project (5-minute setup), then paste its address here.</p>
+      <p class="class-teacher-link"><button id="classTeacherModeBtn" class="linklike">🍎 I'm a teacher</button></p>
+    </div>
+
+    <!-- Teacher setup: server + create a class -->
+    <div id="classSetupView" class="hidden">
+      <p class="lead">Create a room, put the QR code on the board, and collect every student's design from one screen — ready to 3D print.</p>
+      <p class="section-label">1 · Class name</p>
+      <div class="class-row">
+        <input id="classTeacherName" class="class-input" maxlength="40" placeholder="e.g. Ms. Lee — Grade 3" autocomplete="off" aria-label="Class name">
+        <button id="classCreateBtn" class="btn primary">🍎 Create my class</button>
+      </div>
+      <details id="classServerSetup" class="class-teacher-setup">
+        <summary>⚙️ Server (one-time setup)</summary>
+        <p class="fine">Classroom needs the free CraftPrint class server — a 5-minute, no-cost setup a tech-comfortable grown-up does once for the whole school: see <b>server/README.md</b> in the CraftPrint project. Paste the address it gives you here; it's checked instantly. Students never need this — the QR code carries it to their tablets automatically.</p>
         <div class="class-row">
           <input id="classServer" class="class-input wide" placeholder="https://craftprint-class.yourname.workers.dev" autocomplete="off" spellcheck="false" aria-label="Classroom server address">
-          <button id="classServerSave" class="btn small">Save</button>
-        </div>
-        <div class="class-row">
-          <input id="classTeacherName" class="class-input" maxlength="40" placeholder="Class name (e.g. Ms. Lee, Grade 3)" autocomplete="off" aria-label="Class name">
-          <button id="classCreateBtn" class="btn">🍎 Create a class</button>
+          <button id="classServerSave" class="btn small">Save &amp; check</button>
         </div>
       </details>
+      <p class="class-teacher-link"><button id="classBackBtn" class="linklike">⬅️ Back</button></p>
     </div>
 
     <!-- Student view: joined a room -->
@@ -224,7 +233,14 @@
 
     <!-- Teacher view: running a room -->
     <div id="classTeacherView" class="hidden">
-      <p class="class-code-banner">Room code: <b id="classCodeBig"></b></p>
+      <div class="class-board">
+        <div class="class-board-qr"><canvas id="classQR" width="232" height="232" aria-label="Join QR code"></canvas></div>
+        <div class="class-board-side">
+          <p class="class-code-banner">Room code: <b id="classCodeBig"></b></p>
+          <p class="fine">Put this on the board — students scan the QR with the tablet camera (room and server come along automatically), or type the code. Then they build and press 🖐 Hand in.</p>
+          <button id="classCopyLinkBtn" class="btn small">🔗 Copy join link</button>
+        </div>
+      </div>
       <div class="button-row wrap">
         <button id="classRefreshBtn" class="btn">🔄 Refresh</button>
         <button id="classZipDesignsBtn" class="btn">⬇️ All design files</button>
@@ -273,7 +289,7 @@
       <li>🦋 <b>Mirror</b> (M): build both sides at once — wedges flip to mirror too, great for roofs and ships!</li>
       <li>↩️ <b>Ctrl+Z</b> undo, <b>Ctrl+Shift+Z</b> redo • 📦 <b>My Stuff</b> saves your builds</li>
       <li>💾 In <b>My Stuff</b>, <b>⬇️ Design file</b> downloads your build as a file you can keep, share with friends, or move to another device — <b>⬆️ Open design file</b> loads it back in, ready to edit (unlike the printed STL, a design file keeps all the blocks)</li>
-      <li>🏫 <b>Class</b> (top bar): students type the room code from the board and their first name, build, then <b>🖐 Hand in</b> — the teacher collects every design on one screen and downloads them all, ready to 3D print. No accounts or passwords, just first names.</li>
+      <li>🏫 <b>Class</b> (top bar): students scan the teacher's QR code with the tablet camera (or type the room code) plus their first name, build, then <b>🖐 Hand in</b> — the teacher collects every design on one screen and downloads them all, ready to 3D print. No accounts or passwords, just first names.</li>
     </ul>
     <h3>👨‍🔧 For grown-ups: printing tips</h3>
     <ul class="bullets small-text">

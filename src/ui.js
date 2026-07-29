@@ -11,6 +11,7 @@ import { blocksToSTL } from './stl.js';
 import { makeZip } from './zip.js';
 import * as storage from './storage.js';
 import * as classroom from './classroom.js';
+import qrcode from '../vendor/qrcode.mjs';
 
 const $ = (id) => document.getElementById(id);
 
@@ -360,6 +361,7 @@ export function setupUI(app, { firstRun }) {
   // server/README.md.
   const classViews = {
     join: $('classJoinView'),
+    setup: $('classSetupView'),
     student: $('classStudentView'),
     teacher: $('classTeacherView'),
   };
@@ -380,12 +382,40 @@ export function setupUI(app, { firstRun }) {
 
   let classDesignsCache = [];
 
+  // Big scannable QR of the join link on the teacher's screen: students point
+  // the tablet camera at the board and land in the room with zero typing
+  // beyond their name (the link carries the room code AND server address).
+  function drawJoinQR(code) {
+    const canvas = $('classQR');
+    const ctx = canvas.getContext('2d');
+    const size = canvas.width;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    try {
+      const qr = qrcode(0, 'M'); // auto version, medium error correction
+      qr.addData(classroom.joinURL(code));
+      qr.make();
+      const n = qr.getModuleCount();
+      const quiet = 8;
+      const cell = (size - quiet * 2) / n;
+      ctx.fillStyle = '#241d3d';
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (qr.isDark(r, c)) {
+            ctx.fillRect(quiet + c * cell, quiet + r * cell, Math.ceil(cell), Math.ceil(cell));
+          }
+        }
+      }
+    } catch { /* link too long to encode — the Copy link button still works */ }
+  }
+
   function renderClassModal() {
     const st = classroom.getState();
-    $('classServer').value = st.server || '';
+    $('classServer').value = st.server || classroom.DEFAULT_SERVER || '';
     if (st.code && st.teacherKey) {
       showClassView('teacher');
       $('classCodeBig').textContent = st.code;
+      drawJoinQR(st.code);
       refreshClassDesigns();
     } else if (st.code && st.student) {
       showClassView('student');
@@ -402,11 +432,34 @@ export function setupUI(app, { firstRun }) {
     openModal('classModal');
   });
 
-  $('classServerSave').addEventListener('click', () => {
+  $('classTeacherModeBtn').addEventListener('click', () => {
+    app.sounds.click();
+    showClassView('setup');
+    // Nudge the one-time server step open only while it's still needed.
+    $('classServerSetup').open = !classroom.serverURL();
+  });
+  $('classBackBtn').addEventListener('click', () => { app.sounds.click(); showClassView('join'); });
+
+  $('classServerSave').addEventListener('click', async () => {
     app.sounds.click();
     const server = $('classServer').value.trim();
     classroom.setState({ ...classroom.getState(), server });
-    toast(server ? '✅ Class server saved on this device!' : 'Class server cleared');
+    if (!server) { toast('Class server cleared'); return; }
+    // Check the address right away so typos surface immediately.
+    try {
+      if (await classroom.health()) {
+        app.sounds.tada();
+        toast('✅ Server found — you’re ready to create a class!');
+      } else {
+        toast('🤔 That address answered, but it isn’t a CraftPrint class server.');
+      }
+    } catch {
+      toast('❌ No class server at that address — check for typos?');
+    }
+  });
+
+  $('classCode').addEventListener('input', () => {
+    $('classCode').value = $('classCode').value.toUpperCase();
   });
 
   $('classJoinBtn').addEventListener('click', async () => {
@@ -420,6 +473,8 @@ export function setupUI(app, { firstRun }) {
       app.sounds.tada();
       renderClassModal();
       toast(`🎒 You joined ${info.teacher}'s class!`);
+      // Joined via a link/QR? Tidy the address bar so reloads start clean.
+      if (location.search) history.replaceState(null, '', location.pathname);
     } catch (e) { toast(classErrText(e)); }
   });
 
@@ -440,8 +495,24 @@ export function setupUI(app, { firstRun }) {
     renderClassModal();
   });
 
+  $('classCopyLinkBtn').addEventListener('click', async () => {
+    app.sounds.click();
+    const url = classroom.joinURL(classroom.getState().code);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('🔗 Join link copied — paste it in Google Classroom, email, anywhere!');
+    } catch {
+      toast(`🔗 ${url}`, 8000); // clipboard blocked: show it long enough to copy by hand
+    }
+  });
+
   $('classCreateBtn').addEventListener('click', async () => {
     app.sounds.click();
+    if (!classroom.serverURL()) {
+      $('classServerSetup').open = true;
+      toast('⚙️ One-time step first: set up the class server below.');
+      return;
+    }
     try {
       const teacher = $('classTeacherName').value.trim() || 'My class';
       const room = await classroom.createRoom(teacher);
@@ -627,7 +698,24 @@ export function setupUI(app, { firstRun }) {
   $('helpBtn').addEventListener('click', () => { app.sounds.click(); openModal('helpModal'); });
 
   // ---------------------------------------------------------------- welcome
-  if (firstRun) openModal('welcomeModal');
+  // A join link / scanned QR (?class=CODE&server=...) beats the welcome tour:
+  // it drops the student straight into the Class screen with the room code
+  // (and server) prefilled — they only type their first name.
+  const bootParams = new URLSearchParams(location.search);
+  const bootJoin = (bootParams.get('class') || '').trim().toUpperCase();
+  if (bootJoin) {
+    const bootServer = (bootParams.get('server') || '').trim();
+    if (bootServer) classroom.setState({ ...classroom.getState(), server: bootServer });
+    renderClassModal();
+    if (!classroom.getState().code) {
+      showClassView('join');
+      $('classCode').value = bootJoin;
+    }
+    openModal('classModal');
+    setTimeout(() => $('classStudent').focus(), 50);
+  } else if (firstRun) {
+    openModal('welcomeModal');
+  }
   $('letsBuildBtn').addEventListener('click', () => {
     app.sounds.click();
     closeModals();
