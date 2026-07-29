@@ -722,6 +722,11 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyT' && !e.repeat) { app.tip(); sounds.click(); }
   if (e.code === 'KeyQ' && !e.repeat) { app.ui?.toggleShape(); }
   if (e.code === 'KeyG' && !e.repeat) { app.ui?.cycleSize(); }
+  // Z/X/C/V pick a shape directly (Ctrl+Z stays undo — ui.js handles it).
+  if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
+    const SHAPE_KEYS = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
+    if (e.code in SHAPE_KEYS) { app.ui?.selectShape(SHAPE_KEYS[e.code]); sounds.click(); }
+  }
 });
 
 window.addEventListener('keyup', (e) => {

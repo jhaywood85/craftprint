@@ -90,11 +90,11 @@
 
 <!-- Orbit-mode tools (hidden while walking; walk mode uses mouse buttons) -->
 <nav class="toolbar hud" aria-label="Tools">
-  <button class="btn tool" data-tool="build" title="Build — click to add blocks (B)"><span class="glyph">🧱</span><span class="label">Build</span></button>
-  <button class="btn tool" data-tool="erase" title="Erase — click blocks to remove them (E)"><span class="glyph">🧽</span><span class="label">Erase</span></button>
-  <button class="btn tool" data-tool="paint" title="Paint — click blocks to recolor them (P)"><span class="glyph">🎨</span><span class="label">Paint</span></button>
+  <button class="btn tool" data-tool="build" title="Build — click to add blocks (B)"><span class="glyph">🧱</span><span class="key-hint">B</span><span class="label">Build</span></button>
+  <button class="btn tool" data-tool="erase" title="Erase — click blocks to remove them (E)"><span class="glyph">🧽</span><span class="key-hint">E</span><span class="label">Erase</span></button>
+  <button class="btn tool" data-tool="paint" title="Paint — click blocks to recolor them (P)"><span class="glyph">🎨</span><span class="key-hint">P</span><span class="label">Paint</span></button>
   <div class="divider"></div>
-  <button id="mirrorBtn" class="btn tool" title="Mirror mode — build both sides at once (M)"><span class="glyph">🦋</span><span class="label">Mirror</span></button>
+  <button id="mirrorBtn" class="btn tool" title="Mirror mode — build both sides at once (M)"><span class="glyph">🦋</span><span class="key-hint">M</span><span class="label">Mirror</span></button>
   <div class="divider"></div>
   <button id="undoBtn" class="btn tool" title="Undo (Ctrl+Z)"><span class="glyph">↩️</span><span class="label">Undo</span></button>
   <button id="redoBtn" class="btn tool" title="Redo (Ctrl+Shift+Z)"><span class="glyph">↪️</span><span class="label">Redo</span></button>
@@ -106,13 +106,13 @@
      way the slope faces (it matches the ghost preview in the world). The
      Size button cycles Full → Half → Quarter, like Turn cycles rotation. -->
 <div id="shapebar" class="shapebar hud" aria-label="Block shape and size">
-  <button class="btn shape selected" data-shape="0" title="Cube block (Q switches shape)"><span class="glyph">🧱</span><span class="label">Cube</span></button>
-  <button class="btn shape" data-shape="1" title="Wedge block — a 45° edge. The icon shows which way it faces (Q switches shape)"><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 3 L4 21 L22 21 Z" fill="#e5533d" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Wedge</span></button>
-  <button class="btn shape" data-shape="2" title="Round corner block — rounds a corner seen from above, great for towers. The icon shows which corner (Q switches shape)"><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 3 L21 3 A18 18 0 0 1 3 21 Z" fill="#57b96b" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Round</span></button>
-  <button class="btn shape" data-shape="3" title="Curve block — a wedge with a rounded slope, great for smooth roofs. The icon shows which way it faces (Q switches shape)"><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 21 L3 3 A18 18 0 0 1 21 21 Z" fill="#8f7df0" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Curve</span></button>
-  <button id="rotateBtn" class="btn shape" title="Turn the block around, like a spinning top (R)"><span class="glyph">🔄</span><span class="label">Turn</span></button>
-  <button id="tipBtn" class="btn shape" title="Tip the block over — lay wedges on their side or upside down (T)"><span class="glyph">🔃</span><span class="label">Tip</span></button>
-  <button id="sizeBtn" class="btn shape" title="Block size — tap to switch Full / Half / Quarter (G)"><span class="glyph sizeglyph"><span class="sizebox s4"></span></span><span class="label">Full</span></button>
+  <button class="btn shape selected" data-shape="0" title="Cube block (Z — or Q to cycle shapes)"><span class="key-hint">Z</span><span class="glyph">🧱</span><span class="label">Cube</span></button>
+  <button class="btn shape" data-shape="1" title="Wedge block — a 45° edge. The icon shows which way it faces (X)"><span class="key-hint">X</span><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 3 L4 21 L22 21 Z" fill="#e5533d" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Wedge</span></button>
+  <button class="btn shape" data-shape="2" title="Round corner block — rounds a corner seen from above, great for towers. The icon shows which corner (C)"><span class="key-hint">C</span><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 3 L21 3 A18 18 0 0 1 3 21 Z" fill="#57b96b" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Round</span></button>
+  <button class="btn shape" data-shape="3" title="Curve block — a wedge with a rounded slope, great for smooth roofs. The icon shows which way it faces (V)"><span class="key-hint">V</span><span class="glyph dir-glyph"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 21 L3 3 A18 18 0 0 1 21 21 Z" fill="#8f7df0" stroke="#241d3d" stroke-width="2" stroke-linejoin="round"/></svg></span><span class="label">Curve</span></button>
+  <button id="rotateBtn" class="btn shape" title="Turn the block around, like a spinning top (R)"><span class="glyph">🔄</span><span class="key-hint">R</span><span class="label">Turn</span></button>
+  <button id="tipBtn" class="btn shape" title="Tip the block over — lay wedges on their side or upside down (T)"><span class="glyph">🔃</span><span class="key-hint">T</span><span class="label">Tip</span></button>
+  <button id="sizeBtn" class="btn shape" title="Block size — tap to switch Full / Half / Quarter (G)"><span class="glyph sizeglyph"><span class="sizebox s4"></span></span><span class="key-hint">G</span><span class="label">Full</span></button>
 </div>
 
 <div id="counter" class="counter hud">🧱 0</div>
@@ -253,7 +253,8 @@
       <li>🖱️ <b>Right-click</b> place a block • <b>Left-click</b> break a block (like Minecraft) • <b>Middle-click</b> copy a block</li>
       <li>⬆️ <b>Space</b> jump • tap Space <b>twice</b> to fly (Space up, Shift down)</li>
       <li>🎨 <b>Scroll wheel</b> or number keys <b>1–9, 0</b> pick a color • <b>F</b> paints the block you're looking at</li>
-      <li>🔺 <b>Q</b> cycles Cube → Wedge → Round → Curve • <b>R</b> turns the block • <b>T</b> tips it over • <b>G</b> cycles Full → Half → Quarter size</li>
+      <li>🔺 <b>Z / X / C / V</b> pick Cube / Wedge / Round / Curve (<b>Q</b> cycles them) • <b>R</b> turns the block • <b>T</b> tips it over • <b>G</b> cycles Full → Half → Quarter size</li>
+      <li>⌨️ Every button shows its key on a little badge — colors are <b>1–9, 0</b></li>
       <li>🔓 <b>Esc</b> frees the mouse to use the buttons; click the world to dive back in</li>
     </ul>
     <h3>🎥 Camera view (spin around from outside)</h3>

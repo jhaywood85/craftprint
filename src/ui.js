@@ -100,7 +100,13 @@ export function setupUI(app, { firstRun }) {
     b.style.background = c.hex;
     b.title = c.name;
     b.setAttribute('aria-label', c.name);
-    if (i < 10) b.dataset.key = `${(i + 1) % 10}`; // 1..9 then 0
+    if (i < 10) {
+      b.dataset.key = `${(i + 1) % 10}`; // 1..9 then 0
+      const k = document.createElement('span');
+      k.className = 'key-hint';
+      k.textContent = b.dataset.key;
+      b.appendChild(k);
+    }
     b.addEventListener('click', () => {
       selectColor(i);
       app.sounds.click();
@@ -652,6 +658,16 @@ export function setupUI(app, { firstRun }) {
 
     // Shape controls work in both modes. (In walk mode, main.js also binds R
     // and Q while the pointer is locked; this covers the unlocked/orbit case.)
+    // Z/X/C/V pick a shape directly (badged on the buttons); works in orbit
+    // and in unlocked walk mode (locked walk is handled in main.js). Never
+    // steal Ctrl/Cmd/Alt combos (copy/paste etc.).
+    const SHAPE_KEYS = { z: 0, x: 1, c: 2, v: 3 };
+    if (!mod && !e.altKey && e.key.toLowerCase() in SHAPE_KEYS) {
+      selectShape(SHAPE_KEYS[e.key.toLowerCase()]);
+      app.sounds.click();
+      return;
+    }
+
     if (app.mode === 'orbit') {
       if (e.key.toLowerCase() === 'r') { app.rotate(); app.sounds.click(); return; }
       if (e.key.toLowerCase() === 't') { app.tip(); app.sounds.click(); return; }
@@ -669,6 +685,7 @@ export function setupUI(app, { firstRun }) {
 
   return {
     selectColor,
+    selectShape,
     reflectShape,
     reflectSize,
     toggleShape,
