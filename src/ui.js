@@ -657,8 +657,8 @@ export function setupUI(app, { firstRun }) {
       if (e.key.toLowerCase() === 't') { app.tip(); app.sounds.click(); return; }
       if (e.key.toLowerCase() === 'q') { toggleShape(); return; }
 
-      // Tool keys only make sense in orbit mode (walk mode: RMB breaks,
-      // LMB places, F paints — and WASD owns most letters).
+      // Tool keys only make sense in orbit mode (walk mode: LMB breaks,
+      // RMB places like Minecraft, F paints — and WASD owns most letters).
       switch (e.key.toLowerCase()) {
         case 'b': selectTool('build'); break;
         case 'e': selectTool('erase'); break;

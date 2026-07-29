@@ -188,14 +188,17 @@ body.walk-mode .toolbar { display: none; }
 
 /* The "click to grab the mouse" prompt: shown in walk mode when NOT locked
    and no modal is open. */
+/* Floats above the middle of the scene, well clear of the shape bar and
+   palette at the bottom so those stay visible and clickable while the
+   pointer is free. Clicks fall through to whatever is underneath. */
 .lock-hint {
   position: fixed;
   inset: 0;
   z-index: 11;
   display: none;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  padding-bottom: 92px;
+  padding-bottom: 14vh;
   pointer-events: none;
 }
 /* The "click to grab the mouse" prompt is desktop-only; touch walk mode uses

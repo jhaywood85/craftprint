@@ -38,8 +38,8 @@ Click the world once to grab the mouse, then:
 | --- | --- |
 | Walk | **WASD** or arrow keys |
 | Look | **Move the mouse** |
-| Place a block | **Left-click** |
-| Break a block | **Right-click** |
+| Place a block | **Right-click** (like Minecraft) |
+| Break a block | **Left-click** |
 | Copy a block (color + shape) | **Middle-click** |
 | Jump | **Space** |
 | Fly | Tap **Space twice** (Space = up, Shift = down) |

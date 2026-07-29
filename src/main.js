@@ -674,8 +674,9 @@ function stopAllHolds() {
 document.addEventListener('mousedown', (e) => {
   if (app.mode !== 'walk' || !app.isLocked()) return;
   e.preventDefault();
-  if (e.button === 0) startHold(0, walkPlace);
-  else if (e.button === 2) startHold(2, walkBreak);
+  // Minecraft convention: left breaks, right places.
+  if (e.button === 0) startHold(0, walkBreak);
+  else if (e.button === 2) startHold(2, walkPlace);
   else if (e.button === 1) walkPickColor();
 });
 document.addEventListener('mouseup', (e) => stopHold(e.button));
