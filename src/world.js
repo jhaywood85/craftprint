@@ -28,8 +28,16 @@ export const QHEIGHT = HEIGHT * Q;
 
 export const SHAPE_CUBE = 0;
 export const SHAPE_WEDGE = 1;
-export const SHAPE_ROUND = 2; // vertical quarter-cylinder: rounds a corner in plan view
-export const SHAPE_CURVE = 3; // horizontal quarter-cylinder: a wedge with a curved slope
+export const SHAPE_ROUND = 2; // LEGACY id: vertical quarter-cylinder (folded into SHAPE_CURVE)
+export const SHAPE_CURVE = 3; // quarter-cylinder ("Round"): curved slope; Tip it for corners
+
+// A vertical quarter-cylinder (legacy SHAPE_ROUND) is the same solid as the
+// curve tipped upright, so it's one shape now — Tip reaches every pose.
+// Legacy round blocks convert on load: orientation r of shape 2 becomes
+// ROUND_TO_CURVE[r] of shape 3. Table derived numerically from the geometry
+// (tests/shapes.test.mjs re-derives it and asserts equality).
+export const ROUND_TO_CURVE =
+  [4, 6, 12, 17, 9, 10, 2, 0, 5, 17, 11, 12, 3, 6, 1, 4, 10, 0, 9, 2, 11, 1, 5, 3];
 
 export const GRID_SIZES = [4, 2, 1]; // full, half, quarter (in quarter units)
 
@@ -40,12 +48,10 @@ const key = (x, y, z) => `${x},${y},${z}`;
 function toRecord(value) {
   if (typeof value === 'number') return { c: value, s: SHAPE_CUBE, r: 0, g: Q };
   const g = value.g === 1 || value.g === 2 ? value.g : Q;
-  return {
-    c: value.c ?? 0,
-    s: value.s ?? SHAPE_CUBE,
-    r: ((value.r ?? 0) % 24 + 24) % 24,
-    g,
-  };
+  let s = value.s ?? SHAPE_CUBE;
+  let r = ((value.r ?? 0) % 24 + 24) % 24;
+  if (s === SHAPE_ROUND) { r = ROUND_TO_CURVE[r]; s = SHAPE_CURVE; }
+  return { c: value.c ?? 0, s, r, g };
 }
 
 export class VoxelWorld {

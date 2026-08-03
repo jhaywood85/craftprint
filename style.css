@@ -518,6 +518,10 @@ body.touch-device .key-hint { display: none; }
   z-index: 50;
   padding: 20px;
 }
+/* Generic utility used by JS view toggling (e.g. the Class modal's views).
+   !important so it beats any display rule on the same element. */
+.hidden { display: none !important; }
+
 .overlay.hidden { display: none; }
 
 .modal {
@@ -619,8 +623,41 @@ body.touch-device .welcome-touch { display: block; }
 }
 .class-input.wide { flex: 1; min-width: 220px; font-size: 13px; }
 
+.class-row.center { justify-content: center; }
 .class-teacher-setup { margin-top: 16px; }
 .class-teacher-setup summary { cursor: pointer; font-weight: bold; }
+
+.class-teacher-link { margin-top: 18px; text-align: center; }
+.linklike {
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  opacity: 0.65;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.linklike:hover { opacity: 1; }
+
+/* Teacher "put this on the board" panel: QR beside the room code. */
+.class-board {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.class-board-qr {
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  padding: 6px;
+  line-height: 0;
+  flex-shrink: 0;
+}
+.class-board-side { flex: 1; min-width: 220px; }
 
 .class-code-banner {
   font-size: 20px;

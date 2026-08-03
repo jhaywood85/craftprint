@@ -13,7 +13,7 @@
 // preserved) and translate into the positive octant sitting on Z = 0.
 
 import { shapeTriangles, coversFace, DIRS } from './shapes.js';
-import { SHAPE_CUBE, Q } from './world.js';
+import { SHAPE_CUBE, SHAPE_ROUND, SHAPE_CURVE, ROUND_TO_CURVE, Q } from './world.js';
 
 const OPPOSITE = [1, 0, 3, 2, 5, 4]; // opposite DIRS index
 
@@ -155,13 +155,17 @@ function bevelTriangles(shape, rot, r) {
 function normalizeCells(cells) {
   const out = [];
   for (const row of cells) {
+    let b;
     if (row.length >= 7) {
       const [x, y, z, c = 0, s = SHAPE_CUBE, r = 0, g] = row;
-      out.push({ x, y, z, c, s, r, g: g === 1 || g === 2 ? g : Q });
+      b = { x, y, z, c, s, r, g: g === 1 || g === 2 ? g : Q };
     } else {
       const [x, y, z, c = 0, s = SHAPE_CUBE, r = 0] = row;
-      out.push({ x: x * Q, y: y * Q, z: z * Q, c, s, r, g: Q });
+      b = { x: x * Q, y: y * Q, z: z * Q, c, s, r, g: Q };
     }
+    // Legacy vertical-round blocks are the curve in a tipped orientation.
+    if (b.s === SHAPE_ROUND) { b.r = ROUND_TO_CURVE[((b.r % 24) + 24) % 24]; b.s = SHAPE_CURVE; }
+    out.push(b);
   }
   return out;
 }

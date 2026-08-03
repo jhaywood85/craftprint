@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { VoxelWorld, SIZE, HEIGHT, Q, QSIZE, QHEIGHT, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE } from './world.js';
+import { VoxelWorld, SIZE, HEIGHT, Q, QSIZE, QHEIGHT, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_CURVE } from './world.js';
 import { WorldRenderer, addBed, addBuildVolume, OFF, ORIENT_QUATS } from './meshing.js';
 import { shapeTriangles, mirrorOrient, ORIENT_YAW, ORIENT_TIP } from './shapes.js';
 import { PALETTE } from './palette.js';
@@ -82,7 +82,7 @@ function ghostGeometry(shape) {
   return geo;
 }
 const GHOST_GEO = {};
-for (const s of [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE]) GHOST_GEO[s] = ghostGeometry(s);
+for (const s of [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_CURVE]) GHOST_GEO[s] = ghostGeometry(s);
 
 function makeGhost() {
   const ghost = new THREE.Mesh(
@@ -117,7 +117,7 @@ const app = {
   mode: 'walk',       // 'walk' (first person) | 'orbit' (spin-around camera)
   tool: 'build',      // orbit-mode tool: 'build' | 'erase' | 'paint'
   colorIndex: 0,
-  shape: SHAPE_CUBE,  // 0 = cube, 1 = wedge, 2 = round corner, 3 = curve
+  shape: SHAPE_CUBE,  // 0 = cube, 1 = wedge, 3 = round (quarter-cylinder)
   rot: 0,             // orientation index 0..23 for the block being placed
   gsize: Q,           // placement size in quarter units: 4 full, 2 half, 1 quarter
   mirror: false,
@@ -722,9 +722,9 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyT' && !e.repeat) { app.tip(); sounds.click(); }
   if (e.code === 'KeyQ' && !e.repeat) { app.ui?.toggleShape(); }
   if (e.code === 'KeyG' && !e.repeat) { app.ui?.cycleSize(); }
-  // Z/X/C/V pick a shape directly (Ctrl+Z stays undo — ui.js handles it).
+  // Z/X/C pick a shape directly (Ctrl+Z stays undo — ui.js handles it).
   if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
-    const SHAPE_KEYS = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
+    const SHAPE_KEYS = { KeyZ: 0, KeyX: 1, KeyC: 3 };
     if (e.code in SHAPE_KEYS) { app.ui?.selectShape(SHAPE_KEYS[e.code]); sounds.click(); }
   }
 });
@@ -802,7 +802,7 @@ renderer.setAnimationLoop((t) => {
 // Hook for automated tests and debugging.
 window.craft = {
   app, world, player, input, PALETTE, blocksToSTL, SIZE, HEIGHT, Q, QSIZE, QHEIGHT,
-  SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE,
+  SHAPE_CUBE, SHAPE_WEDGE, SHAPE_CURVE,
   walkBreak, walkPlace, walkPaint, walkPickColor, pickCenter,
   stepPlayer: (dt) => { player.step(dt, input, world); player.syncCamera(camera); },
   doActionFromHit,

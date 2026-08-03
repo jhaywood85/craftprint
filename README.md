@@ -44,8 +44,8 @@ Click the world once to grab the mouse, then:
 | Jump | **Space** |
 | Fly | Tap **Space twice** (Space = up, Shift = down) |
 | Pick a color | **Scroll wheel** or number keys **1–9, 0** |
-| Pick a shape directly | **Z / X / C / V** = Cube / Wedge / Round / Curve |
-| Cycle shapes (cube → wedge → round → curve) | **Q** (or the shape bar) |
+| Pick a shape directly | **Z / X / C** = Cube / Wedge / Round |
+| Cycle shapes (cube → wedge → round) | **Q** (or the shape bar) |
 | Turn the block (about vertical) | **R** |
 | Tip the block over (about horizontal) | **T** |
 | Cycle block size (full → half → quarter) | **G** (or the Size button in the shape bar) |
@@ -65,7 +65,7 @@ Click the world once to grab the mouse, then:
 
 | Action | How |
 | --- | --- |
-| Choose a shape | 🧱 Cube, 🔺 Wedge (45° edge), Round (rounded corner in plan view — stack for round towers), or Curve (rounded slope) — shape bar or **Q** |
+| Choose a shape | 🧱 Cube, 🔺 Wedge (45° edge), or Round (a quarter-cylinder: rounded slope lying down, rounded tower corner tipped upright) — shape bar or **Q** |
 | Orient a shape | **Turn** (R) spins about vertical, **Tip** (T) rolls about horizontal — together they reach all 24 axis-aligned orientations; the ghost preview shows the exact pose |
 | Back up / share designs | 📦 My Stuff → **⬇️ Design file** exports the block data as JSON; **⬆️ Open design file** imports it |
 | Classrooms | 🏫 **Class**: the teacher creates a room and writes the 5-letter code on the board; students join with the code + first name and **🖐 Hand in** builds; the teacher collects them all and downloads a zip of print-ready STLs. Needs the free classroom server — see `server/README.md` (5-minute Cloudflare Worker deploy). No accounts, no passwords, first names only. |
@@ -98,13 +98,14 @@ Click the world once to grab the mouse, then:
   and AABB collision against both the voxel blocks and the build-plate edges,
   using Pointer Lock for mouse look.
 - Block shapes (`src/shapes.js`): each block stores a shape (cube, wedge,
-  round corner, or curve), a rotation, and a size (full / half / quarter —
+  or round — a faceted quarter-cylinder), an orientation, and a size (full / half / quarter —
   the world grid runs at quarter resolution, `src/world.js`). The geometry
   module is shared by the renderer and the STL exporter so a block looks
   identical on screen and in the print. A wedge is a triangular prism — a
-  cube with one vertical edge sliced at 45°; the round shapes are faceted
-  quarter-cylinders (vertical for plan-view corners, horizontal for rounded
-  slopes).
+  cube with one vertical edge sliced at 45°; Turn + Tip orient any shape
+  into all 24 axis-aligned poses, so one round shape covers both rounded
+  slopes and rounded corners (old saves with the separate vertical-round
+  shape convert on load).
 - Creations autosave to the browser's localStorage; **My Stuff** keeps named
   saves with thumbnails.
 - STL exporter (`src/stl.js`) emits only exterior faces, culling a face only

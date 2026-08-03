@@ -9,6 +9,7 @@ import {
   shapeTriangles, coversFace, mirrorOrient, DIRS,
   SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE,
 } from '../src/shapes.js';
+import { ROUND_TO_CURVE, VoxelWorld } from '../src/world.js';
 
 let failures = 0;
 function check(name, cond, detail = '') {
@@ -112,6 +113,32 @@ for (const s of [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE]) {
     }
   }
   check(`shape ${s}: coverage table matches geometry for all 24 orientations`, ok);
+}
+
+console.log('\nlegacy round → curve conversion:');
+{
+  // The hardcoded ROUND_TO_CURVE table in world.js must match a fresh
+  // numeric derivation: every legacy vertical-round orientation is the same
+  // solid as the curve in the mapped orientation.
+  const fix = (v) => (Math.abs(v) < 5e-5 ? 0 : v).toFixed(4);
+  const sig = (shape, o) => {
+    const pts = new Set();
+    for (const t of shapeTriangles(shape, o)) for (const p of t) pts.add(p.map(fix).join());
+    return [...pts].sort().join('|');
+  };
+  let identical = true;
+  for (let r = 0; r < 24; r++) {
+    if (sig(SHAPE_ROUND, r) !== sig(SHAPE_CURVE, ROUND_TO_CURVE[r])) { identical = false; break; }
+  }
+  check('table maps every orientation to the identical solid', identical);
+
+  // World storage converts legacy rounds on entry and never writes shape 2.
+  const w = new VoxelWorld();
+  w.set(4, 0, 4, { c: 1, s: SHAPE_ROUND, r: 3 });
+  const rec = w.getCell(4, 0, 4);
+  check('world converts legacy round records',
+    rec.s === SHAPE_CURVE && rec.r === ROUND_TO_CURVE[3]);
+  check('saves contain no legacy shape ids', w.toArray().every((row) => (row[4] ?? 0) !== SHAPE_ROUND));
 }
 
 console.log(failures === 0 ? '\nAll shapes tests passed.' : `\n${failures} test(s) FAILED.`);

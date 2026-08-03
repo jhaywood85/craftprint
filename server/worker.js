@@ -61,6 +61,11 @@ export async function handleRequest(request, env) {
   const path = url.pathname.replace(/\/+$/, '');
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
+  // Health check: lets the app verify a pasted server address instantly.
+  if (path === '/api/health' && request.method === 'GET') {
+    return json({ ok: true, service: 'craftprint-class' });
+  }
+
   const m = path.match(/^\/api\/rooms(?:\/([A-Za-z0-9]{4,8}))?(?:\/(handin|designs))?(?:\/([a-z0-9-]{1,24}))?$/);
   if (!m) return err(404, 'not found');
   const code = m[1]?.toUpperCase();

@@ -28,6 +28,11 @@ async function call(method, path, { body, key } = {}) {
   return { status: res.status, data: await res.json().catch(() => ({})) };
 }
 
+console.log('\nhealth check:');
+const health = await call('GET', '/api/health');
+check('health endpoint identifies the service',
+  health.status === 200 && health.data.service === 'craftprint-class');
+
 console.log('\nroom lifecycle:');
 const created = await call('POST', '/api/rooms', { body: { teacher: 'Ms. Lee' } });
 check('create room returns code + key', created.status === 200 &&
