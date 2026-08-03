@@ -2,11 +2,12 @@
 // per-instance color), plus the printer-bed base plate and build-volume frame.
 
 import * as THREE from 'three';
-import { SIZE, HEIGHT, Q, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE } from './world.js';
+import { SIZE, HEIGHT, Q, SHAPE_CUBE, SHAPE_WEDGE, SHAPE_CURVE } from './world.js';
 import { shapeTriangles, ORIENTS } from './shapes.js';
 
-// Every renderable shape gets its own instanced layer.
-const SHAPE_IDS = [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_ROUND, SHAPE_CURVE];
+// Every renderable shape gets its own instanced layer. (Legacy SHAPE_ROUND
+// converts to an oriented SHAPE_CURVE on world load, so it never renders.)
+const SHAPE_IDS = [SHAPE_CUBE, SHAPE_WEDGE, SHAPE_CURVE];
 
 // One quaternion per orientation index, shared with the ghost preview so the
 // preview always matches what gets placed (and exported).

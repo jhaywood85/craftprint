@@ -145,7 +145,11 @@ export function setupUI(app, { firstRun }) {
     if (app.tool === 'erase') selectTool('build');
   }
   function toggleShape() {
-    selectShape((app.shape + 1) % shapeButtons.length); // cycle all shapes
+    // Cycle through the shapes in shape-bar order (ids aren't contiguous:
+    // legacy shape 2 was folded into 3).
+    const order = shapeButtons.map((b) => Number(b.dataset.shape));
+    const i = order.indexOf(app.shape);
+    selectShape(order[(i + 1) % order.length]);
     app.sounds.click();
   }
   for (const b of shapeButtons) {
@@ -746,10 +750,10 @@ export function setupUI(app, { firstRun }) {
 
     // Shape controls work in both modes. (In walk mode, main.js also binds R
     // and Q while the pointer is locked; this covers the unlocked/orbit case.)
-    // Z/X/C/V pick a shape directly (badged on the buttons); works in orbit
+    // Z/X/C pick a shape directly (badged on the buttons); works in orbit
     // and in unlocked walk mode (locked walk is handled in main.js). Never
     // steal Ctrl/Cmd/Alt combos (copy/paste etc.).
-    const SHAPE_KEYS = { z: 0, x: 1, c: 2, v: 3 };
+    const SHAPE_KEYS = { z: 0, x: 1, c: 3 };
     if (!mod && !e.altKey && e.key.toLowerCase() in SHAPE_KEYS) {
       selectShape(SHAPE_KEYS[e.key.toLowerCase()]);
       app.sounds.click();
