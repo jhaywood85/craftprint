@@ -279,8 +279,13 @@ function runBeveled(name, cells, mm, bevelMM) {
   const { count, tris } = parseSTL(blocksToSTL(cells, mm, { bevelMM }));
   const sharpVol = expectedVolume(cells, mm);
   const vol = signedVolume(tris);
-  check('bevel removes a little volume (still positive winding)',
-    vol > sharpVol * 0.8 && vol < sharpVol, `(got ${vol.toFixed(3)} of ${sharpVol})`);
+  // A lone block only loses volume to the bevel. Assemblies gain welds where
+  // blocks fuse, and summing independent shells counts each overlap twice —
+  // so the sum may exceed the sharp volume a little (the printed UNION is
+  // still smaller); bound it loosely instead.
+  const hi = cells.length === 1 ? sharpVol : sharpVol * 1.25;
+  check('volume in the beveled/welded range (positive winding)',
+    vol > sharpVol * 0.8 && vol < hi, `(got ${vol.toFixed(3)} of ${sharpVol})`);
   const { unbalanced, strictViolations } = manifoldReport(tris);
   check('watertight (all directed edges paired)', unbalanced === 0, `(unbalanced=${unbalanced})`);
   if (cells.length === 1) {
@@ -300,14 +305,36 @@ for (const shape of [0, 1, 2, 3]) {
   }
 }
 
-// 22. Beveled stack: two independent closed shells, combined volume is
-//     exactly twice a single beveled cube.
+// 22. Beveled stack: two closed shells whose touching faces are WELDED —
+//     pushed past the boundary into each other so the slicer fuses them into
+//     one strong solid instead of two barely-touching parts. The summed
+//     shell volume therefore exceeds 2x an isolated beveled cube (each shell
+//     grew a weld slab), while staying under the sharp total.
 {
   const single = runBeveled('beveled single cube (8mm)', [[0, 0, 0]], 8, 0.3);
   const pair = runBeveled('beveled stacked cubes (8mm)', [[0, 0, 0], [0, 1, 0]], 8, 0.3);
-  check('stacked beveled volume = 2x single', Math.abs(pair.vol - 2 * single.vol) < 1e-3,
-    `(${pair.vol.toFixed(3)} vs 2x${single.vol.toFixed(3)})`);
+  const slab = 0.3 * (8 - 2 * 0.3) ** 2; // one weld extension, r x plate area
+  check('stacked shells interpenetrate (welded, not just touching)',
+    pair.vol > 2 * single.vol + slab,
+    `(${pair.vol.toFixed(2)} vs 2x${single.vol.toFixed(2)} + ~${(2 * slab).toFixed(1)} weld)`);
 }
+
+// 22b. A lone beveled cube on the plate has no neighbors: nothing welds, so
+//     its footprint still sits exactly inside the sharp cube (checked by
+//     runBeveled's never-grows bound) and its base stays flat on Z=0.
+{
+  const { tris } = parseSTL(blocksToSTL([[2, 0, 2]], 8, { bevelMM: 0.3 }));
+  let flatBase = 0;
+  for (const { verts } of tris) {
+    if (verts.every((v) => Math.abs(v[2]) < 1e-6)) flatBase++;
+  }
+  console.log('\nlone beveled cube base:');
+  check('bottom face still sits flat on the bed', flatBase >= 2, `(got ${flatBase} tris at z=0)`);
+}
+
+// 22c. Wedge roof welded onto a cube: the wedge's full base is backed by the
+//     cube top, so the pair fuses; still watertight per shell.
+runBeveled('beveled wedge on cube (8mm)', [[0, 0, 0], [0, 1, 0, 0, 1, 2]], 8, 0.3);
 
 // 23. Small blocks clamp the bevel instead of collapsing (quarter block at
 //     3mm scale has 0.75mm edges — a 0.3mm bevel must shrink to fit).

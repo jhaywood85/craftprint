@@ -29,9 +29,14 @@ export const SOFT_EDGE_MM = 0.3;
 // shrink by ~r; the gaps become 45° bevel strips along edges and small
 // triangular facets at corners. Exact for convex solids — and every CraftPrint
 // shape is convex. Each beveled block is an independent closed shell, so the
-// export stays watertight; where two blocks touch, their shrunken contact
-// faces still coincide and slicers union them, leaving a fine groove along
-// block seams (the printed model shows its bricks, like the screen does).
+// export stays watertight.
+//
+// WELDING: a shell that merely touches its neighbor is structurally weak —
+// slicers don't reliably bond coincident surfaces, and the groove would cut a
+// snap line along every seam. So any face that is fully backed by solid
+// neighbors is pushed PAST the block boundary by the bevel width: the shells
+// genuinely interpenetrate and the slicer fuses them into one strong solid,
+// while the grooves stay purely cosmetic on the outside surface.
 
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -57,9 +62,28 @@ function solvePlanes(n1, d1, n2, d2, n3, d3) {
 /**
  * Beveled triangles for a shape in unit-cell space. r is the bevel width in
  * unit-cell units (already scaled for the block's size by the caller).
+ * welded is a 6-element boolean array (DIRS order): faces lying on those
+ * cell boundaries are offset an extra r OUTWARD so they bury themselves in
+ * the solid neighbor and the slicer fuses the blocks together.
  */
-function bevelTriangles(shape, rot, r) {
+function bevelTriangles(shape, rot, r, welded = null) {
   const tris = shapeTriangles(shape, rot);
+
+  // Offset magnitude for a face: bevel width, doubled for welded boundary
+  // faces. A face belongs to welded direction i when its unit normal equals
+  // DIRS[i] and its plane sits exactly on that cell boundary (n·p is 1 for
+  // +axis faces, 0 for -axis faces).
+  function faceOffset(n, d) {
+    if (!welded) return r;
+    for (let i = 0; i < 6; i++) {
+      if (!welded[i]) continue;
+      const D = DIRS[i];
+      const dp = n[0] * D[0] + n[1] * D[1] + n[2] * D[2];
+      const boundary = D[0] + D[1] + D[2] > 0 ? 1 : 0;
+      if (dp > 0.9999 && Math.abs(d - boundary) < 1e-6) return r * 2;
+    }
+    return r;
+  }
   const pk = (p) => `${p[0].toFixed(6)},${p[1].toFixed(6)},${p[2].toFixed(6)}`;
 
   // Group triangles into planar faces.
@@ -103,11 +127,17 @@ function bevelTriangles(shape, rot, r) {
     eroded.set(k, x || p);
   }
 
+  // Per-face offset vector: r along the normal for exposed faces, 2r for
+  // welded boundary faces (which lands them r past the boundary, buried in
+  // the neighbor). Using one consistent vector per face everywhere below
+  // keeps the shell closed regardless of the mix.
+  for (const f of faces) f.o = scl(f.n, faceOffset(f.n, f.d));
+
   const out = [];
-  // Shrunken faces, pushed back onto their original planes.
+  // Shrunken faces, pushed out along their normals.
   for (const f of faces) {
     for (const t of f.tris) {
-      out.push(t.map((p) => add(eroded.get(pk(p)), scl(f.n, r))));
+      out.push(t.map((p) => add(eroded.get(pk(p)), f.o)));
     }
   }
   // Bevel strip per shape edge (a directed edge whose reverse lives on a
@@ -131,7 +161,7 @@ function bevelTriangles(shape, rot, r) {
     const A = eroded.get(a), B = eroded.get(b);
     // F1 owns the forward edge a→b and lies to its left (CCW from outside),
     // so the outward-facing strip runs F1-side → F2-side along A first.
-    const o1 = scl(faces[f1].n, r), o2 = scl(faces[f2].n, r);
+    const o1 = faces[f1].o, o2 = faces[f2].o;
     out.push(
       [add(A, o1), add(A, o2), add(B, o2)],
       [add(A, o1), add(B, o2), add(B, o1)]
@@ -140,11 +170,10 @@ function bevelTriangles(shape, rot, r) {
   // Corner facet per vertex, wound outward (positive triple product).
   for (const [k, { fs }] of verts) {
     if (fs.size < 3) continue;
-    const [a, b, c] = [...fs];
-    let n1 = faces[a].n, n2 = faces[b].n, n3 = faces[c].n;
-    if (dot(n1, cross(n2, n3)) < 0) { const t = n2; n2 = n3; n3 = t; }
+    let [a, b, c] = [...fs];
+    if (dot(faces[a].n, cross(faces[b].n, faces[c].n)) < 0) { const t = b; b = c; c = t; }
     const A = eroded.get(k);
-    out.push([add(A, scl(n1, r)), add(A, scl(n2, r)), add(A, scl(n3, r))]);
+    out.push([add(A, faces[a].o), add(A, faces[b].o), add(A, faces[c].o)]);
   }
   return out;
 }
@@ -203,7 +232,53 @@ export function buildMesh(cells, mm, { bevelMM = 0 } = {}) {
     at.set(`${b.x},${b.y},${b.z}`, b);
   }
 
-  const bevelCache = new Map(); // "s,r,rUnit" -> triangles
+  const bevelCache = new Map(); // "s,r,rUnit,weldmask" -> triangles
+
+  // Occupancy at quarter resolution (bevel mode only): used to find faces
+  // fully backed by solid neighbors — those faces get welded into them.
+  let occ = null;
+  if (bevelMM > 0) {
+    occ = new Map();
+    for (const b of blocks) {
+      for (let i = 0; i < b.g; i++) {
+        for (let j = 0; j < b.g; j++) {
+          for (let k = 0; k < b.g; k++) {
+            occ.set(`${b.x + i},${b.y + j},${b.z + k}`, b);
+          }
+        }
+      }
+    }
+  }
+
+  // Is face direction d of this block fully backed by solid material at the
+  // shared plane? True only when every adjacent quarter cell is filled by a
+  // cube (solid throughout) or by a block whose own full face sits exactly
+  // on our plane — so a welded face pushed past the boundary stays buried.
+  function fullyBacked(blk, d) {
+    const { x, y, z, g } = blk;
+    const [dx, dy, dz] = DIRS[d];
+    const axis = dx !== 0 ? 0 : dy !== 0 ? 1 : 2;
+    const positive = dx + dy + dz > 0;
+    const anchor = [x, y, z];
+    const plane = positive ? anchor[axis] + g : anchor[axis];
+    const [u, v] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1];
+    for (let i = 0; i < g; i++) {
+      for (let j = 0; j < g; j++) {
+        const cell = [0, 0, 0];
+        cell[axis] = positive ? plane : plane - 1;
+        cell[u] = anchor[u] + i;
+        cell[v] = anchor[v] + j;
+        const nb = occ.get(cell.join(','));
+        if (!nb) return false;
+        if (nb.s === SHAPE_CUBE) continue;
+        const nbAnchor = [nb.x, nb.y, nb.z][axis];
+        const nbBoundary = positive ? nbAnchor : nbAnchor + nb.g;
+        if (nbBoundary !== plane) return false;
+        if (!coversFace(nb.s, nb.r, OPPOSITE[d])) return false;
+      }
+    }
+    return true;
+  }
 
   // Collect exterior triangles in game space (block units) with their color.
   const gameTris = [];
@@ -228,10 +303,13 @@ export function buildMesh(cells, mm, { bevelMM = 0 } = {}) {
       if (hidden.every(Boolean)) continue;
       const edgeMM = scale * mm;
       const rUnit = Math.min(bevelMM, edgeMM * 0.12) / edgeMM; // unit-cell units
-      const key = `${s},${r},${rUnit.toFixed(5)}`;
+      const blk = { x, y, z, g, s, r };
+      const welded = [0, 1, 2, 3, 4, 5].map((d) => fullyBacked(blk, d));
+      const mask = welded.reduce((m, w, i) => m | (w ? 1 << i : 0), 0);
+      const key = `${s},${r},${rUnit.toFixed(5)},${mask}`;
       tris = bevelCache.get(key);
       if (!tris) {
-        tris = bevelTriangles(s, r, rUnit);
+        tris = bevelTriangles(s, r, rUnit, welded);
         bevelCache.set(key, tris);
       }
     } else {
