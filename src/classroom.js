@@ -39,9 +39,11 @@ export function joinURL(code) {
 }
 
 // Quick "is this really a classroom server?" probe for the setup screen.
+// Returns { ok, needsPasscode } — schools can require a staff passcode to
+// open rooms on a shared server (see server/README.md).
 export async function health() {
   const data = await api('/health');
-  return data?.service === 'craftprint-class';
+  return { ok: data?.service === 'craftprint-class', needsPasscode: !!data?.needsPasscode };
 }
 
 async function api(path, { method = 'GET', body, teacherKey } = {}) {
@@ -65,8 +67,8 @@ async function api(path, { method = 'GET', body, teacherKey } = {}) {
   return data;
 }
 
-export const createRoom = (teacher) =>
-  api('/rooms', { method: 'POST', body: { teacher } });
+export const createRoom = (teacher, passcode) =>
+  api('/rooms', { method: 'POST', body: { teacher, passcode } });
 
 export const checkRoom = (code) =>
   api(`/rooms/${encodeURIComponent(code)}`);

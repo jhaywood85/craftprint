@@ -23,6 +23,12 @@ const MAX_BODY = 300 * 1024;          // a design is a few KB; 300 KB is generou
 const MAX_DESIGNS = 60;               // per room
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L
 
+// The KV free tier allows ~1,000 writes/day, so don't spend one refreshing a
+// room's expiry on every single hand-in: a room's TTL is 60 days, so touching
+// it at most once every 12 hours keeps it alive with room to spare and halves
+// the writes a class consumes.
+const ROOM_TOUCH_MS = 12 * 60 * 60 * 1000;
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
@@ -61,9 +67,16 @@ export async function handleRequest(request, env) {
   const path = url.pathname.replace(/\/+$/, '');
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
-  // Health check: lets the app verify a pasted server address instantly.
+  // A school that exposes one shared server can set the CREATE_PASSCODE secret
+  // (`wrangler secret put CREATE_PASSCODE`) so only staff can open rooms —
+  // otherwise anyone who learns the address could burn the free-tier quota.
+  // Unset = open, which is the right default for a single family/classroom.
+  const requiredPasscode = env.CREATE_PASSCODE || '';
+
+  // Health check: lets the app verify a pasted server address instantly, and
+  // tells it whether room creation needs a passcode so the UI can ask.
   if (path === '/api/health' && request.method === 'GET') {
-    return json({ ok: true, service: 'craftprint-class' });
+    return json({ ok: true, service: 'craftprint-class', needsPasscode: !!requiredPasscode });
   }
 
   const m = path.match(/^\/api\/rooms(?:\/([A-Za-z0-9]{4,8}))?(?:\/(handin|designs))?(?:\/([a-z0-9-]{1,24}))?$/);
@@ -92,12 +105,16 @@ export async function handleRequest(request, env) {
   // POST /api/rooms — create a room.
   if (!code && request.method === 'POST') {
     const body = (await readBody()) || {};
+    if (requiredPasscode && String(body.passcode ?? '') !== requiredPasscode) {
+      return err(403, 'teacher passcode required');
+    }
     const teacher = cleanName(body.teacher, 40) || 'My teacher';
     // Retry on the (unlikely) chance of a code collision.
     for (let attempt = 0; attempt < 5; attempt++) {
       const newCode = randomFrom(CODE_ALPHABET, 5);
       if (await env.ROOMS.get(`room:${newCode}`)) continue;
-      const room = { teacher, key: randomFrom('abcdef0123456789', 32), created: Date.now() };
+      const now = Date.now();
+      const room = { teacher, key: randomFrom('abcdef0123456789', 32), created: now, touched: now };
       await env.ROOMS.put(`room:${newCode}`, JSON.stringify(room), { expirationTtl: ROOM_TTL_S });
       return json({ code: newCode, teacherKey: room.key, teacher });
     }
@@ -129,8 +146,14 @@ export async function handleRequest(request, env) {
       updated: Date.now(),
     };
     await env.ROOMS.put(`d:${code}:${slug}`, JSON.stringify(design), { expirationTtl: ROOM_TTL_S });
-    // Keep the room alive as long as it's being used.
-    await env.ROOMS.put(`room:${code}`, JSON.stringify(room), { expirationTtl: ROOM_TTL_S });
+    // Keep the room alive while it's in use, but at most once every
+    // ROOM_TOUCH_MS so a busy class doesn't spend two write quota units per
+    // hand-in (see ROOM_TOUCH_MS).
+    const now = Date.now();
+    if (now - (room.touched ?? room.created ?? 0) > ROOM_TOUCH_MS) {
+      await env.ROOMS.put(`room:${code}`, JSON.stringify({ ...room, touched: now }),
+        { expirationTtl: ROOM_TTL_S });
+    }
     return json({ ok: true });
   }
 

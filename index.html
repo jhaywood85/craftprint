@@ -209,6 +209,11 @@
         <input id="classTeacherName" class="class-input" maxlength="40" placeholder="e.g. Ms. Lee — Grade 3" autocomplete="off" aria-label="Class name">
         <button id="classCreateBtn" class="btn primary">🍎 Create my class</button>
       </div>
+      <!-- Only shown when the school's server requires a staff passcode. -->
+      <div id="classPasscodeRow" class="class-row hidden">
+        <input id="classPasscode" class="class-input" type="password" maxlength="64" placeholder="Teacher passcode" autocomplete="off" aria-label="Teacher passcode">
+        <span class="fine">Your school set a passcode for creating classes.</span>
+      </div>
       <details id="classServerSetup" class="class-teacher-setup">
         <summary>⚙️ Server (one-time setup)</summary>
         <p class="fine">Classroom needs the free CraftPrint class server — a 5-minute, no-cost setup a tech-comfortable grown-up does once for the whole school: see <b>server/README.md</b> in the CraftPrint project. Paste the address it gives you here; it's checked instantly. Students never need this — the QR code carries it to their tablets automatically.</p>

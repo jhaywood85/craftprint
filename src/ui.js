@@ -379,6 +379,7 @@ export function setupUI(app, { firstRun }) {
     if (m === 'offline') return '📡 Could not reach the class server — check the internet connection.';
     if (m.includes('room not found')) return '🤔 That room code doesn’t exist — check the board!';
     if (m.includes('room is full')) return '😅 The room is full — tell your teacher!';
+    if (m.includes('passcode')) return '🔒 That teacher passcode isn’t right — check with your school.';
     return `😕 Class problem: ${m}`;
   }
 
@@ -441,6 +442,13 @@ export function setupUI(app, { firstRun }) {
     showClassView('setup');
     // Nudge the one-time server step open only while it's still needed.
     $('classServerSetup').open = !classroom.serverURL();
+    // Ask the configured server whether it wants a staff passcode, so the
+    // field is already there before the teacher presses Create.
+    if (classroom.serverURL()) {
+      classroom.health()
+        .then((info) => $('classPasscodeRow').classList.toggle('hidden', !info.needsPasscode))
+        .catch(() => { /* offline: Create will report it */ });
+    }
   });
   $('classBackBtn').addEventListener('click', () => { app.sounds.click(); showClassView('join'); });
 
@@ -451,8 +459,10 @@ export function setupUI(app, { firstRun }) {
     if (!server) { toast('Class server cleared'); return; }
     // Check the address right away so typos surface immediately.
     try {
-      if (await classroom.health()) {
+      const info = await classroom.health();
+      if (info.ok) {
         app.sounds.tada();
+        $('classPasscodeRow').classList.toggle('hidden', !info.needsPasscode);
         toast('✅ Server found — you’re ready to create a class!');
       } else {
         toast('🤔 That address answered, but it isn’t a CraftPrint class server.');
@@ -519,7 +529,7 @@ export function setupUI(app, { firstRun }) {
     }
     try {
       const teacher = $('classTeacherName').value.trim() || 'My class';
-      const room = await classroom.createRoom(teacher);
+      const room = await classroom.createRoom(teacher, $('classPasscode').value);
       classroom.setState({
         ...classroom.getState(),
         code: room.code, teacherKey: room.teacherKey, teacher, student: undefined,
