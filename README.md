@@ -83,8 +83,10 @@ Click the world once to grab the mouse, then:
   dialog shows the final print size in cm. Build area is 32×32×32 blocks.
 - **✨ Soft edges** (on by default in the export dialog) bevels every exposed
   block edge by 0.3 mm, so corners aren't sharp and block seams show as fine
-  grooves — the printed toy keeps its built-from-bricks look. Untick it for
-  flat, seamless surfaces.
+  grooves — the printed toy keeps its built-from-bricks look. The grooves are
+  cosmetic only: faces fully backed by a neighbor are pushed 0.3 mm into it,
+  so the shells genuinely overlap and the slicer fuses the blocks into one
+  strong solid. Untick it for flat, seamless surfaces.
 - The export dialog warns about **floating blocks** (not connected to the
   ground) — those would print as separate loose pieces — and can highlight
   them in red.
