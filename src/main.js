@@ -9,7 +9,7 @@ import { UndoStack } from './undo.js';
 import { blocksToSTL } from './stl.js';
 import { blocksTo3MF } from './threemf.js';
 import * as storage from './storage.js';
-import { starterRocket } from './starter.js';
+import { starterRocket } from './starters.js';
 import { setupUI } from './ui.js';
 import { Player } from './player.js';
 import { setupTouchControls } from './touchcontrols.js';
@@ -262,6 +262,10 @@ const app = {
   applyMode(mode) {
     this.mode = mode;
     document.body.classList.toggle('walk-mode', mode === 'walk');
+    // Explicit orbit-mode class: mode-dependent HUD (the tool rail) stays
+    // hidden until the app has actually chosen a mode, so nothing flashes
+    // on screen while the page is still booting.
+    document.body.classList.toggle('orbit-mode', mode === 'orbit');
     controls.enabled = mode === 'orbit';
     camera.fov = mode === 'walk' ? 70 : 45;
     camera.updateProjectionMatrix();
