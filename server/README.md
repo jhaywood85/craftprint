@@ -49,6 +49,43 @@ using your copy of the app (so even the QR isn't needed for setup), put the
 address in `DEFAULT_SERVER` at the top of `src/classroom.js` and redeploy
 the site.
 
+## Running it for a whole school (free tier)
+
+Both halves of CraftPrint are designed to sit inside free hosting tiers, with
+no card on file:
+
+| Piece | Free host | What the free tier gives you |
+| --- | --- | --- |
+| The app (static files) | **GitHub Pages** (or Cloudflare Pages) | ~100 GB/month bandwidth — the app is a couple of MB and then cached offline on each tablet, so this is effectively unlimited for a school |
+| Classroom server | **Cloudflare Workers + KV** | ~100,000 requests/day, and **~1,000 KV writes/day** |
+
+The KV write limit is the only meaningful ceiling, and it's the one to size
+against: **each hand-in costs one write.** So roughly:
+
+- a 30-student class handing in 3 versions each ≈ 90 writes
+- that's ~10 classes a day on the free tier, with headroom to spare
+- reads (teachers refreshing, students joining) come out of the 100k/day
+  bucket and are nowhere near the limit
+
+If a district outgrows that, the Workers paid plan is $5/month for millions of
+operations — no code changes needed. Cloudflare Pages is worth considering for
+the static app too (unmetered bandwidth on the free plan).
+
+### Protect a shared server with a teacher passcode
+
+Anyone who learns your server address could otherwise create rooms and burn
+the daily quota. For a server shared across a school, set a staff passcode:
+
+```bash
+npx wrangler secret put CREATE_PASSCODE     # type the passcode when prompted
+```
+
+Teachers then enter that passcode once when creating a class (the app asks
+for it automatically — it checks the server and only shows the field when one
+is required). **Students are unaffected**: joining and handing in never need
+a passcode. Leave the secret unset for a single family or classroom, where
+open creation is simpler.
+
 ## Try it locally first (optional)
 
 ```bash

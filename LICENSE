@@ -1,0 +1,62 @@
+CraftPrint
+Copyright (c) 2026 Josh Haywood. All rights reserved.
+
+This software is source-available, not open source. The source code is
+published so that anyone can read it, audit it, and verify what it does with
+children's data. It is not placed in the public domain, and no license to
+copy, modify, or redistribute it is granted except as stated below.
+
+PERMITTED WITHOUT ASKING
+
+1. Using the app. You may use the publicly hosted CraftPrint app, and any
+   builds or 3D-printable files you create with it are entirely yours, for
+   any purpose including commercial ones. Nothing you make with CraftPrint
+   belongs to the copyright holder.
+
+2. Personal and evaluation copies. You may download, run, and modify this
+   source code on machines you control, for your own private use or to
+   evaluate the software. You may not distribute those copies or modified
+   versions.
+
+NOT PERMITTED WITHOUT A WRITTEN LICENSE
+
+3. Redistributing this software or any modified version of it, in source or
+   compiled form.
+
+4. Operating this software, or a modified version of it, as a service for
+   anyone other than yourself — including hosting the Classroom server for a
+   school, district, organization, or the public, whether or not you charge
+   for it.
+
+5. Selling, sublicensing, or bundling this software with a product or
+   service.
+
+Schools, districts, and educators: licenses covering self-hosting and
+classroom use are available and are usually free or inexpensive. Please ask
+rather than assume — email josh.haywood@qcocentral.com or open an issue on
+the project's GitHub repository.
+
+THIRD-PARTY COMPONENTS
+
+This software includes third-party libraries under their own licenses, which
+continue to govern those files. See THIRD-PARTY-NOTICES.md. Nothing in this
+license restricts your rights under those licenses.
+
+TRADEMARKS
+
+This license grants no rights in any name, logo, or trademark. CraftPrint is
+not affiliated with, endorsed by, or sponsored by Mojang Studios, Microsoft,
+Autodesk, Bambu Lab, or any other company whose products are mentioned in the
+documentation. Those names are used only to describe compatibility or
+inspiration, and remain the property of their respective owners.
+
+NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF OR OTHER DEALINGS IN THE
+SOFTWARE. THIS INCLUDES, WITHOUT LIMITATION, ANY DAMAGE TO 3D PRINTERS OR
+OTHER EQUIPMENT, OR ANY COST OF WASTED PRINTING MATERIAL.

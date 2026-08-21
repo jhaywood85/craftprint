@@ -87,6 +87,52 @@ const del = await call('DELETE', `/api/rooms/${code}/designs/alex`, { key: teach
 const after = await call('GET', `/api/rooms/${code}/designs`, { key: teacherKey });
 check('teacher can delete a hand-in', del.status === 200 && after.data.designs.length === 1);
 
+console.log('\nfree-tier write efficiency:');
+{
+  // The KV free tier allows ~1,000 writes/day, so a hand-in must cost ONE
+  // write, not two: the room's 60-day expiry is only refreshed periodically.
+  let writes = 0;
+  const counting = { ROOMS: { ...env.ROOMS, put: async (k, v) => { writes++; return env.ROOMS.put(k, v); } } };
+  const handIn = (student) => handleRequest(new Request(`${BASE}/api/rooms/${code}/handin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ student, name: 'X', blocks: [[0, 0, 0, 1]] }),
+  }), counting);
+  await handIn('Kai');
+  const first = writes;
+  await handIn('Rae');
+  await handIn('Ola');
+  check('each hand-in costs a single KV write', writes - first === 2, `(${writes - first} writes for 2 hand-ins)`);
+  check('first hand-in also single-write', first === 1, `(${first})`);
+}
+
+console.log('\nteacher passcode (shared school servers):');
+{
+  const guarded = { ROOMS: env.ROOMS, CREATE_PASSCODE: 'lego-time' };
+  const callG = async (body) => {
+    const res = await handleRequest(new Request(`${BASE}/api/rooms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }), guarded);
+    return { status: res.status, data: await res.json().catch(() => ({})) };
+  };
+  const blocked = await callG({ teacher: 'Sneaky' });
+  check('creating without the passcode is refused', blocked.status === 403);
+  const wrong = await callG({ teacher: 'Sneaky', passcode: 'nope' });
+  check('wrong passcode is refused', wrong.status === 403);
+  const good = await callG({ teacher: 'Ms. Lee', passcode: 'lego-time' });
+  check('correct passcode creates the room', good.status === 200 && !!good.data.code);
+
+  const hres = await handleRequest(new Request(`${BASE}/api/health`), guarded);
+  const hdata = await hres.json();
+  check('health advertises that a passcode is needed', hdata.needsPasscode === true);
+  const openHealth = await call('GET', '/api/health');
+  check('open servers report no passcode needed', openHealth.data.needsPasscode === false);
+
+  // Students are unaffected by the passcode.
+  const joinRes = await handleRequest(new Request(`${BASE}/api/rooms/${good.data.code}`), guarded);
+  check('students still join a passcode-protected room freely', joinRes.status === 200);
+}
+
 console.log('\nCORS preflight:');
 const opt = await handleRequest(new Request(`${BASE}/api/rooms`, { method: 'OPTIONS' }), env);
 check('OPTIONS returns CORS headers', opt.status === 204 &&
