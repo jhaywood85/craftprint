@@ -281,6 +281,10 @@ body.walk-mode:not(.locked):not(.modal-open):not(.touch-walk) .lock-hint { displ
 .logo {
   font-size: 24px;
   font-weight: bold;
+  /* Never wrap to two lines: that makes the header taller and crowds the
+     undo bar pinned just below it. */
+  white-space: nowrap;
+  flex-shrink: 0;
   background: var(--paper);
   border: 3px solid var(--ink);
   border-radius: var(--radius);
@@ -308,6 +312,34 @@ body.walk-mode:not(.locked):not(.modal-open):not(.touch-walk) .lock-hint { displ
 .name-input:focus { background: #ffe27a; }
 
 .top-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+/* ------------------------------------------------------------- history bar */
+
+/* Undo/redo, top-left under the header. Visible in BOTH views (the tool rail
+   is camera-only), and clear of the touch stick and action buttons, which
+   sit along the bottom. */
+.history-bar {
+  position: fixed;
+  top: calc(74px + env(safe-area-inset-top));
+  left: calc(14px + env(safe-area-inset-left));
+  display: flex;
+  gap: 8px;
+  background: var(--paper-t);
+  border: 3px solid var(--ink);
+  border-radius: 22px;
+  padding: 8px;
+  box-shadow: 0 5px 0 var(--ink-35);
+}
+
+/* Phone-ish / wrapped top bar: the header is taller, so drop below it. */
+@media (max-width: 720px) {
+  .history-bar { top: calc(126px + env(safe-area-inset-top)); }
+}
+/* Short viewports: drop the labels so this can't crowd the tool rail, which
+   is centred vertically just below. */
+@media (max-height: 700px) {
+  .history-bar .label { display: none; }
+}
 
 /* ----------------------------------------------------------------- toolbar */
 
@@ -720,6 +752,9 @@ body.touch-device .welcome-touch { display: block; }
   line-height: 1.25;
 }
 .starter-emoji { font-size: 30px; line-height: 1.1; }
+/* Centred flex children size to their content, so cap them or long blurbs
+   spill past the card edge instead of wrapping. */
+.starter-name, .starter-blurb { max-width: 100%; }
 .starter-name { font-weight: bold; font-size: 15px; }
 .starter-blurb { font-size: 11.5px; opacity: 0.7; font-weight: normal; }
 
