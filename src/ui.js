@@ -11,6 +11,7 @@ import { blocksToSTL } from './stl.js';
 import { makeZip } from './zip.js';
 import * as storage from './storage.js';
 import * as classroom from './classroom.js';
+import { STARTERS } from './starters.js';
 import qrcode from '../vendor/qrcode.mjs';
 
 const $ = (id) => document.getElementById(id);
@@ -287,6 +288,39 @@ export function setupUI(app, { firstRun }) {
       card.append(img, label, row);
       galleryGrid.appendChild(card);
     }
+  }
+
+  // Starter builds: ready-made models to load and take apart. Built once —
+  // they never change, so there's nothing to re-render.
+  const starterRow = $('starterRow');
+  for (const s of STARTERS) {
+    const b = document.createElement('button');
+    b.className = 'btn starter-card';
+    b.title = `Load the ${s.name} starter build`;
+    b.innerHTML = `<span class="starter-emoji">${s.emoji}</span>`;
+    const label = document.createElement('span');
+    label.className = 'starter-name';
+    label.textContent = s.name;
+    const blurb = document.createElement('span');
+    blurb.className = 'starter-blurb';
+    blurb.textContent = s.blurb;
+    b.append(label, blurb);
+    b.addEventListener('click', () => {
+      app.sounds.click();
+      const load = () => {
+        app.loadCells(s.build(), s.name);
+        nameInput.value = app.name;
+        closeModals();
+        app.sounds.tada();
+        toast(`${s.emoji} Loaded the ${s.name}! Take it apart and make it yours.`, 4000);
+      };
+      if (app.world.count > 0) {
+        confirmAction('✨ Load this starter?',
+          `Your current build will be replaced by the ${s.name}. Save it first if you want to keep it!`,
+          '✨ Load it', load);
+      } else load();
+    });
+    starterRow.appendChild(b);
   }
 
   $('galleryBtn').addEventListener('click', () => {
