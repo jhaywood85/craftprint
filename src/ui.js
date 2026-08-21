@@ -225,14 +225,27 @@ export function setupUI(app, { firstRun }) {
     openModal('confirmModal');
   }
 
+  // "New" offers a choice rather than just wiping the plate: an empty plate,
+  // or one of the starter builds (the starters were invisible when they only
+  // lived in My Stuff, which reads as "my saves").
   $('newBtn').addEventListener('click', () => {
     app.sounds.click();
-    if (app.world.count === 0) return;
+    openModal('newModal');
+  });
+
+  $('emptyPlateBtn').addEventListener('click', () => {
+    app.sounds.click();
+    const fresh = () => {
+      app.clearAll();
+      closeModals();
+      toast('✨ Fresh plate! What will you build?');
+    };
+    if (app.world.count === 0) { fresh(); return; }
     confirmAction(
       '🧹 Start fresh?',
       'This clears the whole build plate. (You can Undo, or save it in My Stuff first!)',
       '🧹 Clear it',
-      () => { app.clearAll(); toast('✨ Fresh plate! What will you build?'); }
+      fresh
     );
   });
 
@@ -290,10 +303,10 @@ export function setupUI(app, { firstRun }) {
     }
   }
 
-  // Starter builds: ready-made models to load and take apart. Built once —
-  // they never change, so there's nothing to re-render.
-  const starterRow = $('starterRow');
-  for (const s of STARTERS) {
+  // Starter builds: ready-made models to load and take apart. Offered in two
+  // places because people arrive from two directions — "✨ New" (I want to
+  // start something) and "📦 My Stuff" (show me builds).
+  function starterCard(s) {
     const b = document.createElement('button');
     b.className = 'btn starter-card';
     b.title = `Load the ${s.name} starter build`;
@@ -320,7 +333,10 @@ export function setupUI(app, { firstRun }) {
           '✨ Load it', load);
       } else load();
     });
-    starterRow.appendChild(b);
+    return b;
+  }
+  for (const row of [$('starterRow'), $('newStarterRow')]) {
+    for (const s of STARTERS) row.appendChild(starterCard(s));
   }
 
   $('galleryBtn').addEventListener('click', () => {
