@@ -115,3 +115,19 @@ Click the world once to grab the mouse, then:
   faces are never culled), so the model stays watertight even with wedges.
   `npm test` verifies structure, watertightness, exact volume (cubes and
   half-volume wedges in all four rotations), and the y-up → z-up axis mapping.
+
+## License
+
+CraftPrint is **source-available, not open source**: the code is published so
+anyone can audit what it does with children's data, but redistribution and
+running it as a service for others need permission. See **[LICENSE](LICENSE)**
+— and note that **anything you build with CraftPrint is entirely yours**.
+
+Educators: licenses for self-hosting and classroom use are available and are
+usually free or inexpensive — please just ask.
+
+Bundled third-party libraries (three.js, qrcode-generator) stay under their
+own MIT licenses: see **[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)**.
+
+CraftPrint is an independent project, not affiliated with Mojang/Microsoft,
+Autodesk, or Bambu Lab.

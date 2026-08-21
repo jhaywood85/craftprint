@@ -386,6 +386,10 @@ export function setupUI(app, { firstRun }) {
   const fileSlug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'design';
 
   let classDesignsCache = [];
+  // Has the teacher saved the active class's key on this device? Drives the
+  // "save your key" nag, which is the difference between a recoverable class
+  // and a lost one.
+  let keySaved = false;
 
   // Big scannable QR of the join link on the teacher's screen: students point
   // the tablet camera at the board and land in the room with zero typing
@@ -414,18 +418,44 @@ export function setupUI(app, { firstRun }) {
     } catch { /* link too long to encode — the Copy link button still works */ }
   }
 
+  // One chip per class this teacher runs, so a term's worth of classes stays
+  // reachable from one screen; the active one is highlighted.
+  function renderClassTabs() {
+    const tabs = $('classTabs');
+    const classes = classroom.myClasses();
+    const active = classroom.activeClass();
+    tabs.innerHTML = '';
+    for (const cls of classes) {
+      const b = document.createElement('button');
+      b.className = 'btn small class-tab' + (cls.code === active?.code ? ' selected' : '');
+      b.textContent = `${cls.teacher} · ${cls.code}`;
+      b.title = `Switch to ${cls.teacher} (room ${cls.code})`;
+      b.addEventListener('click', () => {
+        app.sounds.click();
+        classroom.setActiveClass(cls.code);
+        renderClassModal();
+      });
+      tabs.appendChild(b);
+    }
+    tabs.classList.toggle('hidden', classes.length < 2);
+  }
+
   function renderClassModal() {
     const st = classroom.getState();
     $('classServer').value = st.server || classroom.DEFAULT_SERVER || '';
-    if (st.code && st.teacherKey) {
+    const cls = classroom.activeClass();
+    const student = classroom.studentInfo();
+    if (cls) {
       showClassView('teacher');
-      $('classCodeBig').textContent = st.code;
-      drawJoinQR(st.code);
+      renderClassTabs();
+      $('classCodeBig').textContent = cls.code;
+      drawJoinQR(cls.code);
+      renderKeyWarning();
       refreshClassDesigns();
-    } else if (st.code && st.student) {
+    } else if (student) {
       showClassView('student');
       $('classStudentInfo').textContent =
-        `🎒 You're in ${st.teacher || 'your teacher'}'s class (room ${st.code}) as ${st.student}.`;
+        `🎒 You're in ${student.teacher || 'your teacher'}'s class (room ${student.code}) as ${student.name}.`;
     } else {
       showClassView('join');
     }
@@ -483,7 +513,7 @@ export function setupUI(app, { firstRun }) {
     if (code.length < 4 || !student) { toast('🙂 Type the room code AND your first name!'); return; }
     try {
       const info = await classroom.checkRoom(code);
-      classroom.setState({ ...classroom.getState(), code, student, teacher: info.teacher, teacherKey: undefined });
+      classroom.joinAs(code, student, info.teacher);
       app.sounds.tada();
       renderClassModal();
       toast(`🎒 You joined ${info.teacher}'s class!`);
@@ -495,9 +525,10 @@ export function setupUI(app, { firstRun }) {
   $('classHandInBtn').addEventListener('click', async () => {
     app.sounds.click();
     if (app.world.count === 0) { toast('🙂 Build something first, then hand it in!'); return; }
-    const st = classroom.getState();
+    const me = classroom.studentInfo();
+    if (!me) { toast('🙂 Join a class first!'); return; }
     try {
-      await classroom.handIn(st.code, { student: st.student, name: app.name, blocks: app.world.toArray() });
+      await classroom.handIn(me.code, { student: me.name, name: app.name, blocks: app.world.toArray() });
       app.sounds.tada();
       toast(`🖐 Handed in “${app.name}”! Your teacher has it now.`, 4000);
     } catch (e) { toast(classErrText(e)); }
@@ -505,13 +536,13 @@ export function setupUI(app, { firstRun }) {
 
   $('classLeaveBtn').addEventListener('click', () => {
     app.sounds.click();
-    classroom.setState({ server: classroom.getState().server });
+    classroom.leaveClass();
     renderClassModal();
   });
 
   $('classCopyLinkBtn').addEventListener('click', async () => {
     app.sounds.click();
-    const url = classroom.joinURL(classroom.getState().code);
+    const url = classroom.joinURL(classroom.activeClass()?.code);
     try {
       await navigator.clipboard.writeText(url);
       toast('🔗 Join link copied — paste it in Google Classroom, email, anywhere!');
@@ -530,31 +561,98 @@ export function setupUI(app, { firstRun }) {
     try {
       const teacher = $('classTeacherName').value.trim() || 'My class';
       const room = await classroom.createRoom(teacher, $('classPasscode').value);
-      classroom.setState({
-        ...classroom.getState(),
-        code: room.code, teacherKey: room.teacherKey, teacher, student: undefined,
-      });
+      classroom.addClass({ code: room.code, key: room.teacherKey, teacher, created: Date.now() });
+      keySaved = false; // remind them to save this new class's key
       app.sounds.tada();
       renderClassModal();
       toast(`🍎 Class created! Room code: ${room.code} — write it on the board.`, 5000);
     } catch (e) { toast(classErrText(e)); }
   });
 
+  // "New class" from the teacher screen: back to the setup form, keeping the
+  // classes they already run.
+  $('classNewBtn').addEventListener('click', () => {
+    app.sounds.click();
+    $('classTeacherName').value = '';
+    showClassView('setup');
+    $('classServerSetup').open = false;
+  });
+
+  // Saving the key is what makes a class recoverable, so nag until it's done
+  // (per class, per device) and clear the nag once they've saved or recovered.
+  function renderKeyWarning() {
+    $('classKeyWarning').classList.toggle('hidden', keySaved);
+  }
+
+  $('classSaveKeyBtn').addEventListener('click', () => {
+    app.sounds.click();
+    const cls = classroom.activeClass();
+    if (!cls) return;
+    downloadFile(classroom.keyFileFor(cls),
+      `craftprint-teacher-key-${cls.code}.json`, 'application/json');
+    keySaved = true;
+    renderKeyWarning();
+    toast('🔑 Teacher key saved — keep it somewhere safe (email it to yourself!).', 5000);
+  });
+
   $('classTeacherLeaveBtn').addEventListener('click', () => {
+    const cls = classroom.activeClass();
+    if (!cls) return;
     confirmAction(
       '👋 Close this class here?',
-      'This device will forget the room and its teacher key, so you won’t be able to collect these hand-ins again. Download everything first!',
+      `This device will forget “${cls.teacher}” (room ${cls.code}). You can get it back later with its teacher key — but without that key the hand-ins are gone for good. Save the key or download the designs first!`,
       '👋 Close it',
-      () => { classroom.setState({ server: classroom.getState().server }); renderClassModal(); }
+      () => { classroom.forgetClass(cls.code); renderClassModal(); }
     );
   });
 
+  // --- recovery: room code + teacher key, typed or from a saved key file ---
+  async function recoverInto(code, key) {
+    if (!code || !key) { toast('🙂 Enter both the room code and the teacher key.'); return; }
+    try {
+      const cls = await classroom.recoverClass(code.trim().toUpperCase(), key.trim());
+      classroom.addClass(cls);
+      keySaved = true; // they clearly have the key
+      app.sounds.tada();
+      renderClassModal();
+      toast(`🔑 Got “${cls.teacher}” back — its hand-ins are here.`, 4000);
+    } catch (e) { toast(classErrText(e)); }
+  }
+
+  $('classRecoverCode').addEventListener('input', () => {
+    $('classRecoverCode').value = $('classRecoverCode').value.toUpperCase();
+  });
+  $('classRecoverBtn').addEventListener('click', () => {
+    app.sounds.click();
+    recoverInto($('classRecoverCode').value, $('classRecoverKey').value);
+  });
+
+  const recoverFile = $('classRecoverFile');
+  $('classRecoverFileBtn').addEventListener('click', () => { app.sounds.click(); recoverFile.click(); });
+  recoverFile.addEventListener('change', () => {
+    const file = recoverFile.files && recoverFile.files[0];
+    recoverFile.value = '';
+    if (!file) return;
+    file.text().then((text) => {
+      let data;
+      try { data = JSON.parse(text); } catch { data = null; }
+      if (!data?.code || !data?.key) { toast('😕 That file isn’t a CraftPrint teacher key.'); return; }
+      // A key file remembers which server the class lives on, so a teacher
+      // restoring onto a fresh device doesn't have to set that up again.
+      if (data.server && !classroom.getState().server) {
+        classroom.setState({ ...classroom.getState(), server: data.server });
+      }
+      recoverInto(data.code, data.key);
+    }).catch(() => toast('😕 Could not read that file.'));
+  });
+
   async function refreshClassDesigns() {
-    const st = classroom.getState();
+    const cls = classroom.activeClass();
     const grid = $('classDesigns');
+    if (!cls) { grid.innerHTML = ''; return; }
     grid.innerHTML = '<p class="empty">Loading…</p>';
     try {
-      const { designs } = await classroom.listDesigns(st.code, st.teacherKey);
+      const { designs } = await classroom.listDesigns(cls.code, cls.key);
       classDesignsCache = designs;
       grid.innerHTML = '';
       if (designs.length === 0) {
@@ -611,7 +709,7 @@ export function setupUI(app, { firstRun }) {
       name: `${fileSlug(d.student)}-${fileSlug(d.name)}.craftprint.json`,
       data: JSON.stringify({ app: 'craftprint', version: 1, name: d.name, blocks: d.blocks }),
     })));
-    downloadFile(zip, `class-${classroom.getState().code}-designs.zip`, 'application/zip');
+    downloadFile(zip, `class-${classroom.activeClass()?.code}-designs.zip`, 'application/zip');
     app.sounds.tada();
   });
 
@@ -622,7 +720,7 @@ export function setupUI(app, { firstRun }) {
       name: `${fileSlug(d.student)}-${fileSlug(d.name)}.stl`,
       data: new Uint8Array(blocksToSTL(d.blocks, exportMM, exportOpts())),
     })));
-    downloadFile(zip, `class-${classroom.getState().code}-print-files.zip`, 'application/zip');
+    downloadFile(zip, `class-${classroom.activeClass()?.code}-print-files.zip`, 'application/zip');
     app.sounds.tada();
     toast(`🖨️ ${classDesignsCache.length} print file${classDesignsCache.length > 1 ? 's' : ''} zipped — drop the STLs in your slicer!`, 4500);
   });
@@ -721,7 +819,7 @@ export function setupUI(app, { firstRun }) {
     const bootServer = (bootParams.get('server') || '').trim();
     if (bootServer) classroom.setState({ ...classroom.getState(), server: bootServer });
     renderClassModal();
-    if (!classroom.getState().code) {
+    if (!classroom.activeClass() && !classroom.studentInfo()) {
       showClassView('join');
       $('classCode').value = bootJoin;
     }

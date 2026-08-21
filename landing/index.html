@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CraftPrint — your class designs it, you print it</title>
+<meta name="description" content="A Minecraft-style block builder for kids that exports print-ready 3D files. Students hand in their builds; teachers download the whole class as printable STLs in one click.">
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     BEFORE PUBLISHING, EDIT THESE FOUR THINGS:
+
+     1. CONTACT   — replace every YOUR-EMAIL@example.com with a real address
+                    (consider a fresh Gmail/Fastmail address, not a work one).
+     2. VIDEO     — drop a 60-90s screen recording in as <video> where the
+                    placeholder box is. This is the single highest-converting
+                    asset on the page; the page works without it but not as
+                    well.
+     3. PRICES    — the numbers below are my suggested anchors, not gospel.
+                    Teachers routinely pay $30-50/yr out of pocket; schools
+                    prefer one invoice to a subscription.
+     4. WAITLIST  — the paid tiers say "not open yet" on purpose, because the
+                    hosted service doesn't exist yet. Don't remove that until
+                    it does — promising a product you can't deliver is the
+                    fastest way to lose a teacher's trust.
+
+     Self-contained by design: no fonts, scripts, trackers, or images from
+     other servers. Nothing here phones home.
+     ══════════════════════════════════════════════════════════════════════ -->
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧱</text></svg>">
+<style>
+  :root {
+    --ink: #3a3352;
+    --ink-35: rgba(58, 51, 82, 0.35);
+    --paper: #fffdf7;
+    --sky: #cfeeff;
+    --sky-deep: #a8ddf7;
+    --amber: #ffd93d;
+    --green: #57b96b;
+    --red: #e5533d;
+    --purple: #8f7df0;
+    --max: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.6;
+  }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+  h1, h2, h3 { line-height: 1.15; margin: 0 0 12px; }
+  h1 { font-size: clamp(34px, 6vw, 62px); letter-spacing: -0.02em; }
+  h2 { font-size: clamp(26px, 4vw, 38px); }
+  h3 { font-size: 19px; }
+  p { margin: 0 0 14px; }
+  a { color: inherit; }
+
+  .btn {
+    display: inline-block;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 16px;
+    padding: 13px 22px;
+    box-shadow: 0 4px 0 var(--ink-35);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink-35); }
+  .btn.primary { background: var(--green); color: #fff; }
+  .btn.amber { background: var(--amber); }
+  .btn.big { font-size: 19px; padding: 16px 28px; }
+
+  /* ── hero ── */
+  header.hero {
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-deep) 100%);
+    border-bottom: 4px solid var(--ink);
+    padding: 54px 0 62px;
+    text-align: center;
+  }
+  .logo { font-size: 26px; font-weight: 800; margin-bottom: 26px; }
+  .tagline { font-size: clamp(17px, 2.4vw, 22px); max-width: 640px; margin: 0 auto 26px; }
+  .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .hero-note { margin-top: 18px; font-size: 14px; opacity: 0.75; }
+
+  /* ── three steps ── */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+  .step {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 5px 0 var(--ink-35);
+  }
+  .step-num {
+    display: inline-block; font-weight: 800; font-size: 13px;
+    background: var(--amber); border: 2px solid var(--ink);
+    border-radius: 999px; padding: 2px 11px; margin-bottom: 10px;
+  }
+
+  section { padding: 58px 0; }
+  section.tint { background: #f3f7fb; border-top: 3px solid var(--ink); border-bottom: 3px solid var(--ink); }
+  .lead { font-size: 18px; max-width: 680px; }
+  .center { text-align: center; }
+  .center .lead { margin-left: auto; margin-right: auto; }
+
+  /* ── video ── */
+  .video-slot {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: repeating-linear-gradient(45deg, #e8eef5, #e8eef5 14px, #dee6ef 14px, #dee6ef 28px);
+    border: 3px dashed var(--ink);
+    border-radius: 20px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 20px;
+  }
+  .video-slot .big { font-size: 46px; }
+
+  /* ── features ── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; }
+  .card {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 5px 0 var(--ink-35);
+  }
+  .card .ico { font-size: 30px; line-height: 1; }
+
+  /* ── pricing ── */
+  .tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 18px; align-items: start; }
+  .tier {
+    background: var(--paper); border: 3px solid var(--ink); border-radius: 22px;
+    padding: 24px; box-shadow: 0 6px 0 var(--ink-35); display: flex; flex-direction: column; height: 100%;
+  }
+  .tier.featured { border-color: var(--green); box-shadow: 0 6px 0 rgba(87,185,107,0.45); }
+  .price { font-size: 38px; font-weight: 800; margin: 6px 0 2px; }
+  .price small { font-size: 15px; font-weight: 600; opacity: 0.7; }
+  .tier ul { list-style: none; padding: 0; margin: 14px 0 20px; }
+  .tier li { padding: 5px 0 5px 26px; position: relative; }
+  .tier li::before { content: "✓"; position: absolute; left: 4px; color: var(--green); font-weight: 800; }
+  .tier .btn { margin-top: auto; text-align: center; }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.06em; background: var(--amber); border: 2px solid var(--ink);
+    border-radius: 999px; padding: 2px 10px;
+  }
+  .soon { background: #eceff4; }
+
+  /* ── faq ── */
+  details.faq {
+    background: var(--paper); border: 3px solid var(--ink); border-radius: 16px;
+    padding: 14px 18px; margin-bottom: 12px;
+  }
+  details.faq summary { font-weight: 700; cursor: pointer; font-size: 17px; }
+  details.faq[open] summary { margin-bottom: 8px; }
+
+  footer {
+    background: var(--ink); color: #efeaff;
+    padding: 40px 0 30px; font-size: 14px;
+    border-top: 4px solid var(--ink);
+  }
+  footer a { color: #fff; }
+  footer .fine { opacity: 0.7; font-size: 12.5px; margin-top: 16px; line-height: 1.5; }
+  .footer-links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="logo">🧱 CraftPrint</div>
+    <h1>Your class designs it.<br>You print it.</h1>
+    <p class="tagline">
+      Kids build in a block world they already understand. Twenty minutes later
+      you download the whole class as print-ready 3D files — in one click.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn primary big" href="../">🎮 Try it free — no sign-up</a>
+      <a class="btn amber big" href="#teachers">🍎 I'm a teacher</a>
+    </div>
+    <p class="hero-note">Runs in the browser · works offline on iPads · nothing to install</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">STEP 1</span>
+        <h3>🧱 Kids build</h3>
+        <p>First-person block building with familiar controls. Blocks come in
+           full, half and quarter sizes, with wedges and rounded pieces for
+           roofs and towers.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">STEP 2</span>
+        <h3>🖐 They hand it in</h3>
+        <p>Students scan a QR code off the board, type their first name, and
+           press <b>Hand in</b>. No accounts, no passwords, no email addresses.</p>
+      </div>
+      <div class="step">
+        <span class="step-num">STEP 3</span>
+        <h3>🖨️ You print it</h3>
+        <p>Your screen lists every build. One button downloads them all as
+           watertight STLs — named per student, ready for the slicer.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap center">
+    <h2>See a whole class go from blocks to a print tray</h2>
+    <p class="lead">Ninety seconds, start to finish.</p>
+    <!-- REPLACE THIS BOX with your recording, e.g.
+         <video src="demo.mp4" poster="demo-poster.jpg" controls
+                style="width:100%;border:3px solid var(--ink);border-radius:20px"></video> -->
+    <div class="video-slot">
+      <div class="big">🎬</div>
+      <p style="margin:10px 0 0"><b>Demo video goes here</b></p>
+      <p style="margin:0;font-size:14px;opacity:0.75">Screen-record one real lesson: building, the QR join, the hand-in list, then the printed models on the bed.</p>
+    </div>
+  </div>
+</section>
+
+<section id="teachers">
+  <div class="wrap">
+    <h2>Built for the awkward part: collecting the files</h2>
+    <p class="lead">
+      Designing in 3D is the fun bit — and plenty of tools do it. The part that
+      eats a lesson is getting thirty models off thirty tablets and onto one
+      printer. That's the bit CraftPrint is actually about.
+    </p>
+    <div class="grid" style="margin-top:26px">
+      <div class="card">
+        <div class="ico">🚫</div>
+        <h3>No student logins</h3>
+        <p>Students never make an account. A room code and a first name is the
+           whole flow — which also means there's almost nothing to put in a
+           privacy review.</p>
+      </div>
+      <div class="card">
+        <div class="ico">📱</div>
+        <h3>Scan and go</h3>
+        <p>Put the QR code on the board. Tablets configure themselves when
+           they scan it — nothing to type, nothing to set up per device.</p>
+      </div>
+      <div class="card">
+        <div class="ico">📦</div>
+        <h3>One click, whole class</h3>
+        <p>Download every build as a zip of print-ready STLs, each named after
+           the student who made it. Or grab one at a time.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🖨️</div>
+        <h3>Prints that survive kids</h3>
+        <p>Exports are watertight, sit flat on the bed, and fuse the blocks
+           into one solid piece — with a fine groove between bricks so it still
+           <em>looks</em> built.</p>
+      </div>
+      <div class="card">
+        <div class="ico">🌈</div>
+        <h3>Colour printing too</h3>
+        <p>Export a 3MF that keeps every block's colour for multi-material
+           printers, or a plain STL for everything else.</p>
+      </div>
+      <div class="card">
+        <div class="ico">✈️</div>
+        <h3>Survives your Wi-Fi</h3>
+        <p>The builder works fully offline once loaded. Only handing in needs
+           a connection — and kids can hand in again later.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <h2 class="center">Pricing</h2>
+    <p class="lead center" style="margin-bottom:28px">
+      The builder is free forever. The paid part is hosting the classroom side
+      so you never touch a server.
+    </p>
+    <div class="tiers">
+      <div class="tier">
+        <span class="badge">Available now</span>
+        <h3 style="margin-top:12px">Builder</h3>
+        <div class="price">Free<small> / forever</small></div>
+        <ul>
+          <li>The whole 3D builder</li>
+          <li>Unlimited STL &amp; 3MF exports</li>
+          <li>Save and share design files</li>
+          <li>Works offline, no account</li>
+        </ul>
+        <a class="btn primary" href="../">Start building</a>
+      </div>
+      <div class="tier featured">
+        <span class="badge soon">Not open yet</span>
+        <h3 style="margin-top:12px">Teacher</h3>
+        <div class="price">$39<small> / year</small></div>
+        <ul>
+          <li>Hosted classrooms — no setup</li>
+          <li>Unlimited classes &amp; hand-ins</li>
+          <li>Whole-class STL download</li>
+          <li>Class history across the year</li>
+          <li>Email support from a human</li>
+        </ul>
+        <a class="btn amber" href="#waitlist">Join the waitlist</a>
+      </div>
+      <div class="tier">
+        <span class="badge soon">Not open yet</span>
+        <h3 style="margin-top:12px">School</h3>
+        <div class="price">$149<small> / year</small></div>
+        <ul>
+          <li>Everything in Teacher</li>
+          <li>Up to 20 teachers</li>
+          <li>One invoice, purchase orders fine</li>
+          <li>Privacy summary for IT review</li>
+        </ul>
+        <a class="btn" href="#waitlist">Ask about a school</a>
+      </div>
+    </div>
+    <p class="center" style="margin-top:22px;font-size:14px;opacity:0.8">
+      Prefer to run it yourself? The classroom server is a small open file you
+      can host free on Cloudflare's free tier — and self-hosting for schools is
+      licensed free. <a href="https://github.com/jhaywood85/craftprint/blob/main/server/README.md">See the guide</a>.
+    </p>
+  </div>
+</section>
+
+<section id="waitlist">
+  <div class="wrap center">
+    <h2>Want it for your class?</h2>
+    <p class="lead">
+      Hosted classrooms aren't open yet — I'm setting them up with a small
+      group of teachers first, free, to get the workflow right. If you teach
+      and have a 3D printer, that's exactly who I want to hear from.
+    </p>
+    <!-- EDIT: put your real address here (both places) -->
+    <p style="margin-top:22px">
+      <a class="btn primary big" href="mailto:YOUR-EMAIL@example.com?subject=CraftPrint%20for%20my%20class&body=Hi!%20I%20teach%20(grade%2Fsubject)%3A%0A%0AOur%20printer%20is%3A%0A%0AClass%20size%3A%0A">✉️ Email me about my class</a>
+    </p>
+    <p style="font-size:14px;opacity:0.75;margin-top:14px">
+      No mailing list, no drip campaign — just a reply from me.
+    </p>
+  </div>
+</section>
+
+<section class="tint">
+  <div class="wrap">
+    <h2 class="center" style="margin-bottom:24px">Questions teachers actually ask</h2>
+
+    <details class="faq">
+      <summary>Do students need accounts or email addresses?</summary>
+      <p>No. A student joins with a room code and a first name. Nothing else
+         about them is stored — no email, no password, no surname, no device
+         identifiers. Hand-ins auto-delete after 60 days.</p>
+    </details>
+
+    <details class="faq">
+      <summary>How is this different from Tinkercad?</summary>
+      <p>Tinkercad is a genuinely good, free CAD tool, and if your students are
+         happily using it you don't need this. CraftPrint trades precision for
+         two things: kids need no login and no lesson on how to use it, and you
+         get the whole class's models as printable files in one click instead of
+         collecting them by hand.</p>
+    </details>
+
+    <details class="faq">
+      <summary>What printer do I need?</summary>
+      <p>Any of them. Exports are standard watertight STL, already oriented and
+         sitting flat on the bed. If you have a multi-material printer, the 3MF
+         export keeps each block's colour.</p>
+    </details>
+
+    <details class="faq">
+      <summary>Will the prints survive being played with?</summary>
+      <p>That's the intent. Blocks are fused into a single solid rather than
+         merely touching, so models don't snap along the seams — while a fine
+         groove keeps the built-from-bricks look. Very thin necks and towers can
+         still break, as with any print.</p>
+    </details>
+
+    <details class="faq">
+      <summary>Our Wi-Fi is unreliable. Does that break the lesson?</summary>
+      <p>The builder runs entirely offline once the page has loaded once, so
+         building never stops. Only the hand-in needs a connection, and students
+         can hand in whenever it comes back.</p>
+    </details>
+
+    <details class="faq">
+      <summary>Is this an official Minecraft product?</summary>
+      <p>No — CraftPrint is an independent project with no connection to Mojang
+         or Microsoft, and contains none of their code or artwork. It's simply
+         built with controls kids already know from that genre.</p>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-links">
+      <a href="../">Open the app</a>
+      <a href="https://github.com/jhaywood85/craftprint">Source on GitHub</a>
+      <a href="https://github.com/jhaywood85/craftprint/blob/main/server/README.md">Self-hosting guide</a>
+      <a href="mailto:YOUR-EMAIL@example.com">Contact</a>
+    </div>
+    <p style="margin:0">🧱 CraftPrint — build it, print it.</p>
+    <p class="fine">
+      CraftPrint is an independent project and is not affiliated with,
+      endorsed by, or sponsored by Mojang Studios, Microsoft, Autodesk, or
+      Bambu Lab. Those names are used only to describe compatibility or
+      inspiration and remain the property of their owners.
+      Anything you or your students create with CraftPrint belongs entirely to
+      you.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

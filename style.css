@@ -641,6 +641,17 @@ body.touch-device .welcome-touch { display: block; }
 }
 .linklike:hover { opacity: 1; }
 
+/* Class switcher: one chip per class a teacher runs. */
+.class-tabs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.class-tabs-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.class-tab.selected { background: var(--amber); }
+
 /* Teacher "put this on the board" panel: QR beside the room code. */
 .class-board {
   display: flex;
