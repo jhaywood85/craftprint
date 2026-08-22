@@ -21,9 +21,12 @@ html, body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  /* Stop iOS Safari/standalone rubber-band scrolling fighting the canvas. */
+  /* Stop iOS Safari/standalone rubber-band scrolling fighting the canvas.
+     NOTE: no touch-action here! The page itself can't scroll (fixed +
+     overflow hidden) and the canvas/touch controls set their own
+     touch-action: none — but a root-level none also blocked finger-scrolling
+     inside every modal on iOS (a full My Stuff gallery couldn't scroll). */
   overscroll-behavior: none;
-  touch-action: none;
   position: fixed;
   width: 100%;
 }
@@ -618,6 +621,10 @@ body.touch-device .key-hint { display: none; }
   width: min(440px, 92vw);
   max-height: 86vh;
   overflow-y: auto;
+  /* Belt and braces for tablets: modals are scroll containers, so allow
+     vertical touch panning explicitly (see the html/body note above). */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   text-align: center;
   animation: modal-in 0.3s var(--pop);
 }
