@@ -340,8 +340,9 @@ runBeveled('beveled wedge on cube (8mm)', [[0, 0, 0], [0, 1, 0, 0, 1, 2]], 8, 0.
 //     3mm scale has 0.75mm edges — a 0.3mm bevel must shrink to fit).
 runBeveled('beveled quarter block at small scale', [[0, 0, 0, 0, 0, 0, 1]], 3, 0.3);
 
-// 24. Fully buried blocks are skipped: a 3x3x3 beveled solid emits shells for
-//     26 outer blocks only, and stays watertight.
+// 24. Fully buried blocks are NOT skipped: a 3x3x3 beveled solid emits all 27
+//     shells (dropping the center block hollowed the model out — interior
+//     voids, and welded seams next to the missing block printed as gaps).
 {
   const cells = [];
   for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) for (let z = 0; z < 3; z++) {
@@ -349,7 +350,7 @@ runBeveled('beveled quarter block at small scale', [[0, 0, 0, 0, 0, 0, 1]], 3, 0
   }
   const solid = runBeveled('beveled 3x3x3 solid', cells, 5, 0.3);
   const one = parseSTL(blocksToSTL([[0, 0, 0]], 5, { bevelMM: 0.3 })).count;
-  check('center block skipped', solid.count === 26 * one, `(got ${solid.count}, expected ${26 * one})`);
+  check('all 27 shells emitted', solid.count === 27 * one, `(got ${solid.count}, expected ${27 * one})`);
 }
 
 // 25. bevelMM: 0 (and omitted opts) keeps the sharp geometry byte-identical.
@@ -358,6 +359,51 @@ runBeveled('beveled quarter block at small scale', [[0, 0, 0, 0, 0, 0, 1]], 3, 0
   const a = new Uint8Array(blocksToSTL([[0, 0, 0], [0, 1, 0, 3, 1, 2]], 5));
   const b = new Uint8Array(blocksToSTL([[0, 0, 0], [0, 1, 0, 3, 1, 2]], 5, { bevelMM: 0 }));
   check('identical bytes', a.length === b.length && a.every((v, i) => v === b[i]));
+}
+
+// 26. Bevel export must not hollow the model: a block hidden on all six
+// sides still fills its cell (skipping it left interior voids, and anything
+// welded toward the missing block — like a visor on a solid body — printed
+// with a visible gap at the seam).
+{
+  console.log('\nbevel keeps fully-surrounded blocks solid:');
+  const cells = [];
+  for (let x = 0; x < 3; x++)
+    for (let y = 0; y < 3; y++)
+      for (let z = 0; z < 3; z++) cells.push([x, y, z, 0]);
+  const { tris } = parseSTL(blocksToSTL(cells, 5, { bevelMM: 0.3 }));
+  // Ray up through the exact center: union coverage of [0, 15] must be
+  // continuous (depth never returns to 0 inside the model).
+  const x = 7.51, y = 7.49; // off the block seams / quad diagonals
+  const hits = [];
+  for (const t of tris) {
+    const [A, B, C] = t.verts;
+    const d = (B[1] - C[1]) * (A[0] - C[0]) + (C[0] - B[0]) * (A[1] - C[1]);
+    if (Math.abs(d) < 1e-12) continue;
+    const a = ((B[1] - C[1]) * (x - C[0]) + (C[0] - B[0]) * (y - C[1])) / d;
+    const b = ((C[1] - A[1]) * (x - C[0]) + (A[0] - C[0]) * (y - C[1])) / d;
+    const c = 1 - a - b;
+    if (a < 0 || b < 0 || c < 0) continue;
+    const nz = (B[0] - A[0]) * (C[1] - A[1]) - (B[1] - A[1]) * (C[0] - A[0]);
+    if (Math.abs(nz) < 1e-12) continue;
+    hits.push({ z: a * A[2] + b * B[2] + c * C[2], enter: nz < 0 });
+  }
+  hits.sort((p, q) => p.z - q.z);
+  let depth = 0;
+  let voidSpan = 0;
+  let lastExit = null;
+  for (const h of hits) {
+    if (h.enter) {
+      if (depth === 0 && lastExit !== null) voidSpan = Math.max(voidSpan, h.z - lastExit);
+      depth++;
+    } else {
+      depth--;
+      if (depth === 0) lastExit = h.z;
+    }
+  }
+  check('center column has no interior void', voidSpan < 1e-6, `void of ${voidSpan.toFixed(2)}mm`);
+  check('center column reaches full height', lastExit !== null && Math.abs(lastExit - 15) < 1e-6,
+    `top at ${lastExit}`);
 }
 
 console.log(failures === 0 ? '\nAll STL tests passed.' : `\n${failures} test(s) FAILED.`);

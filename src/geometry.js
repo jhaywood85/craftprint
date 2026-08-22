@@ -298,9 +298,12 @@ export function buildMesh(cells, mm, { bevelMM = 0 } = {}) {
     let tris;
     if (bevelMM > 0) {
       // Beveled blocks are independent closed shells, so faces can't be
-      // culled — but a block hidden on all six sides contributes nothing
-      // and is skipped outright.
-      if (hidden.every(Boolean)) continue;
+      // culled — and a block hidden on all six sides must STILL be emitted:
+      // nothing else fills its cell, so skipping it hollows the model out
+      // from the inside (interior voids, and anything welded toward the
+      // missing block ends up hanging in air — the seam prints as a gap).
+      // Fully-hidden cubes weld on all six faces, so they cost one cached
+      // expanded-cube shell each.
       const edgeMM = scale * mm;
       const rUnit = Math.min(bevelMM, edgeMM * 0.12) / edgeMM; // unit-cell units
       const blk = { x, y, z, g, s, r };
