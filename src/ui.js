@@ -249,8 +249,9 @@ export function setupUI(app, { firstRun }) {
     app.sounds.click();
     if (insidePanel.classList.contains('hidden')) {
       if (app.world.count === 0) { toast('🙂 Build something first!'); return; }
+      // No toast here — the panel labels itself, and a toast would land right
+      // on top of the slider (toasts stack from the same top-center spot).
       openInsideView();
-      toast('👀 Slide down to peel away the top layers — you can build inside, too!', 4500);
     } else {
       resetInsideView();
     }
