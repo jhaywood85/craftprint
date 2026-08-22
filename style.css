@@ -538,10 +538,11 @@ body.touch-device .key-hint { display: none; }
   50% { transform: rotate(-1.5deg) scale(1.07); }
 }
 
-/* See-inside cutaway slider (camera view). */
+/* See-inside cutaway slider (camera view). Sits BELOW the toast zone
+   (toasts stack from 78px down) so status messages never cover the slider. */
 .inside-panel {
   position: fixed;
-  top: 84px;
+  top: 136px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -553,6 +554,8 @@ body.touch-device .key-hint { display: none; }
   padding: 10px 16px;
   box-shadow: 0 5px 0 var(--ink-35);
   max-width: min(92vw, 560px);
+  /* Above the toast pile (z 40): a status message must never bury the slider. */
+  z-index: 41;
 }
 .inside-panel.hidden { display: none; }
 .inside-title { font-size: 14px; font-weight: 700; white-space: nowrap; }
