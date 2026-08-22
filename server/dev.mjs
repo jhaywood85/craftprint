@@ -19,7 +19,18 @@ export function memoryKV() {
   };
 }
 
-const env = { ROOMS: memoryKV() };
+// Optional env passthrough so accounts can be exercised locally:
+//   SESSION_SECRET=dev GOOGLE_FAKE=teacher@example.com node server/dev.mjs
+// (GOOGLE_FAKE signs in as that email WITHOUT talking to Google — strictly a
+// local testing shortcut. Real Google sign-in needs GOOGLE_CLIENT_ID/SECRET.)
+const env = {
+  ROOMS: memoryKV(),
+  CREATE_PASSCODE: process.env.CREATE_PASSCODE,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  SESSION_SECRET: process.env.SESSION_SECRET,
+  GOOGLE_FAKE: process.env.GOOGLE_FAKE,
+};
 const port = Number(process.argv[2]) || 8787;
 
 createServer(async (req, res) => {

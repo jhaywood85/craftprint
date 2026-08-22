@@ -4,6 +4,7 @@ const CURRENT = 'craftprint.current';
 const GALLERY = 'craftprint.gallery';
 const SETTINGS = 'craftprint.settings';
 const CLASSROOM = 'craftprint.classroom';
+const ACCOUNT = 'craftprint.account';
 
 function read(key, fallback) {
   try {
@@ -43,6 +44,10 @@ export function addToGallery(item) {
 // joined) or { code, teacherKey, teacherName } (the teacher who made it).
 export function loadClassroom() { return read(CLASSROOM, {}); }
 export function saveClassroom(c) { return write(CLASSROOM, c); }
+
+// Teacher account session: { token, email, name } or null when signed out.
+export function loadAccount() { return read(ACCOUNT, null); }
+export function saveAccount(a) { return write(ACCOUNT, a); }
 
 export function removeFromGallery(id) {
   const gallery = getGallery().filter((g) => g.id !== id);

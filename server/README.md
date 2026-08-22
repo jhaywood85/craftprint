@@ -86,6 +86,39 @@ is required). **Students are unaffected**: joining and handing in never need
 a passcode. Leave the secret unset for a single family or classroom, where
 open creation is simpler.
 
+## Teacher accounts — "Sign in with Google" (optional)
+
+Teachers can sign in with their Google account to keep a personal cloud copy
+of their designs (☁️ Cloud in **📦 My Stuff**) that survives cleared browsers
+and follows them to any device. No passwords are ever created or stored —
+Google proves who they are; this server keeps only their email, display name,
+and saved designs.
+
+One-time setup (about 10 minutes):
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → create
+   a project (any name, e.g. `craftprint-class`).
+2. **APIs & Services → OAuth consent screen**: choose **External**, fill in
+   the app name and your email, add no extra scopes, and add yourself as a
+   test user (publish the app when you're ready for all teachers).
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   type **Web application**, and under *Authorized redirect URIs* add
+   `https://YOUR-WORKER-URL/api/auth/google/callback`
+   (your `workers.dev` address from the deploy step).
+4. Give the Worker its three secrets:
+
+   ```bash
+   wrangler secret put GOOGLE_CLIENT_ID       # from step 3
+   wrangler secret put GOOGLE_CLIENT_SECRET   # from step 3
+   wrangler secret put SESSION_SECRET         # any long random string
+   ```
+
+   (`openssl rand -hex 32` makes a good SESSION_SECRET.)
+
+That's it — the app notices the server supports sign-in (via `/api/health`)
+and shows the **🔑 Sign in with Google** button in My Stuff automatically.
+Accounts get up to 60 cloud designs each; sessions last 90 days.
+
 ## Try it locally first (optional)
 
 ```bash
@@ -94,11 +127,21 @@ node server/dev.mjs          # same code, in-memory storage, port 8787
 
 Then paste `http://localhost:8787` as the server address in the app.
 
+To try accounts locally without a real Google client, use the test-only
+fake sign-in (never set `GOOGLE_FAKE` on a deployed server):
+
+```bash
+SESSION_SECRET=dev GOOGLE_FAKE=you@example.com node server/dev.mjs
+```
+
 ## Privacy notes for schools
 
 - Stored data per student: first name, a design name, and the block data.
   Nothing else — no emails, no passwords, no tracking.
 - The teacher key never leaves the teacher's browser except on their own
   requests; students cannot read each other's designs.
+- Teacher accounts (if enabled) store only the teacher's email, display name,
+  and their own saved designs. Sign-in goes through Google — no passwords
+  exist anywhere in CraftPrint. Students never sign in to anything.
 - Everything expires after 60 days of inactivity. Deleting the Worker (or
   the KV namespace) erases all data instantly.
