@@ -10,6 +10,7 @@ import { blocksToSTL } from './stl.js';
 import { blocksTo3MF } from './threemf.js';
 import * as storage from './storage.js';
 import { starterRocket } from './starters.js';
+import { analyze, gluePlan } from './structure.js';
 import { setupUI } from './ui.js';
 import { Player } from './player.js';
 import { setupTouchControls } from './touchcontrols.js';
@@ -121,6 +122,8 @@ const app = {
   rot: 0,             // orientation index 0..23 for the block being placed
   gsize: Q,           // placement size in quarter units: 4 full, 2 half, 1 quarter
   mirror: false,
+  cutY: null,         // see-inside cutaway: hide blocks anchored at/above this quarter-unit height
+  structure: { loose: [], skinny: [] }, // latest structural check (structure.js)
   name: 'My Creation',
   onChange: [],       // subscribers, called after any world change
   ui: null,           // filled by setupUI
@@ -143,9 +146,16 @@ const app = {
   notify() { for (const fn of this.onChange) fn(); },
 
   refresh() {
-    worldRenderer.update(world);
+    worldRenderer.update(world, { hideAbove: this.cutY ?? Infinity });
     this.notify();
+    scheduleStructureCheck();
     scheduleAutosave();
+  },
+
+  // See-inside cutaway: qy = quarter-unit height to slice at, null = show all.
+  setCutY(qy) {
+    this.cutY = qy;
+    worldRenderer.update(world, { hideAbove: qy ?? Infinity });
   },
 
   // changes: [{x, y, z, prev, next}] where prev/next are block records or null
@@ -180,8 +190,22 @@ const app = {
     world.loadArray(cells);
     undoStack.clear();
     if (name) this.name = name;
+    this.cutY = null; // a fresh build always arrives whole, not sliced open
+    this.ui?.resetInsideView?.();
     player.ensureFree(world);
     this.refresh();
+  },
+
+  // "Glue it": add the smallest set of bridging cubes that attaches every
+  // loose piece to the ground — as a normal undo-able edit.
+  glueLoose() {
+    const adds = gluePlan(world)
+      .filter(({ x, y, z, rec }) => world.regionFree(x, y, z, rec.g))
+      .map(({ x, y, z, rec }) => ({ x, y, z, prev: null, next: rec }));
+    if (adds.length === 0) return 0;
+    this.applyChanges(adds, () => sounds.place());
+    runStructureCheck(); // refresh the loose/skinny state right away
+    return adds.length;
   },
 
   exportSTL(mm, opts) {
@@ -207,13 +231,13 @@ const app = {
     return c.toDataURL('image/jpeg', 0.72);
   },
 
-  // Flash a set of blocks red (used for the "floating blocks" warning).
-  // Rows are [x, y, z, g] anchors in quarter units (world.floatingCells()).
-  highlightCells(cells) {
+  // Flash a set of blocks (used for the "loose pieces" / "skinny joint"
+  // warnings). Rows are [x, y, z, g] anchors in quarter units.
+  highlightCells(cells, color = '#ff3030') {
     if (cells.length === 0) return;
     const mesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1.1, 1.1, 1.1),
-      new THREE.MeshBasicMaterial({ color: '#ff3030', transparent: true, opacity: 0.6, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, depthWrite: false }),
       cells.length
     );
     const m = new THREE.Matrix4();
@@ -279,6 +303,8 @@ const app = {
       camera.position.set(30, 26, 38);
       controls.target.set(0, 5, 0);
     } else {
+      // Walking around inside a sliced-open build is disorienting — close it.
+      if (this.cutY != null) { this.setCutY(null); this.ui?.resetInsideView?.(); }
       player.ensureFree(world);
       if (IS_TOUCH) {
         touch?.show();
@@ -300,6 +326,54 @@ const app = {
     sounds.click();
   },
 };
+
+// ---------------------------------------------------------------------------
+// Live structural check: after every change (debounced so drag-building stays
+// smooth), measure which blocks are really attached to the ground. Loose
+// pieces get a persistent pulsing overlay plus a counter chip (ui.js), so a
+// kid learns "corner-to-corner doesn't stick" while building, not at print
+// time.
+// ---------------------------------------------------------------------------
+
+let looseMesh = null;
+function updateLooseOverlay(cells) {
+  if (looseMesh) {
+    scene.remove(looseMesh);
+    looseMesh.geometry.dispose();
+    looseMesh.material.dispose();
+    looseMesh = null;
+  }
+  if (cells.length === 0) return;
+  looseMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.06, 1.06, 1.06),
+    new THREE.MeshBasicMaterial({ color: '#ff4040', transparent: true, opacity: 0.35, depthWrite: false }),
+    cells.length
+  );
+  const m = new THREE.Matrix4();
+  const pos = new THREE.Vector3();
+  const scl = new THREE.Vector3();
+  cells.forEach(([x, y, z, g = Q], i) => {
+    pos.set((x + g / 2) / Q - OFF, (y + g / 2) / Q, (z + g / 2) / Q - OFF);
+    scl.setScalar(g / Q);
+    m.compose(pos, new THREE.Quaternion(), scl);
+    looseMesh.setMatrixAt(i, m);
+  });
+  scene.add(looseMesh);
+}
+
+function runStructureCheck() {
+  clearTimeout(structureTimer);
+  structureTimer = null;
+  app.structure = analyze(world);
+  updateLooseOverlay(app.structure.loose);
+  app.ui?.onStructure?.(app.structure);
+}
+
+let structureTimer = null;
+function scheduleStructureCheck() {
+  clearTimeout(structureTimer);
+  structureTimer = setTimeout(runStructureCheck, 200);
+}
 
 let autosaveTimer = null;
 function scheduleAutosave() {
@@ -755,6 +829,7 @@ worldRenderer.update(world);
 
 app.ui = setupUI(app, { firstRun });
 app.notify();
+runStructureCheck(); // seed the loose-pieces chip for the loaded build
 
 // On-screen first-person controls for touch devices.
 let touch = null;
@@ -800,6 +875,8 @@ renderer.setAnimationLoop((t) => {
   const pulse = 0.38 + 0.12 * Math.sin(t / 180);
   ghost.material.opacity = pulse;
   ghostMirror.material.opacity = pulse;
+  // Loose pieces breathe red so they're impossible to miss.
+  if (looseMesh) looseMesh.material.opacity = 0.28 + 0.18 * Math.sin(t / 260);
   renderer.render(scene, camera);
 });
 
@@ -808,6 +885,7 @@ window.craft = {
   app, world, player, input, PALETTE, blocksToSTL, SIZE, HEIGHT, Q, QSIZE, QHEIGHT,
   SHAPE_CUBE, SHAPE_WEDGE, SHAPE_CURVE,
   walkBreak, walkPlace, walkPaint, walkPickColor, pickCenter,
+  analyze: () => analyze(world), gluePlan: () => gluePlan(world), runStructureCheck,
   stepPlayer: (dt) => { player.step(dt, input, world); player.syncCamera(camera); },
   doActionFromHit,
   // Scene handles, so automated checks can frame a build from a chosen angle
