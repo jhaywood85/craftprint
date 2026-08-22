@@ -38,6 +38,13 @@ const HIGH = { negX: 0, posX: 2, negZ: 1, posZ: 3 };
 // Upside-down orientation by which wall the curve tucks under.
 const UNDER = { negX: 9, posX: 13, negZ: 5, posZ: 11 };
 
+// Deterministic 0..1 noise from a coordinate, for dappling foliage without
+// Math.random (so a starter always loads identically).
+function dapple(x, y, z) {
+  const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
+  return n - Math.floor(n);
+}
+
 function maker() {
   const cells = [];
   const put = (qx, qy, qz, c, s, r, g) => {
@@ -75,6 +82,23 @@ function maker() {
       return api;
     },
 
+    // Solid voxel ellipsoid — the shape you want for anything organic (a
+    // tree crown, an animal's body). Stepped layers read as a wedding cake;
+    // a distance test reads as a blob. `tint` picks the colour per block so
+    // a crown can be dappled rather than banded.
+    blob(cx, cy, cz, rx, ry, rz, tint) {
+      const paint = typeof tint === 'function' ? tint : () => tint;
+      for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+        for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
+          for (let z = Math.floor(cz - rz); z <= Math.ceil(cz + rz); z++) {
+            const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry, dz = (z + 0.5 - cz) / rz;
+            if (dx * dx + dy * dy + dz * dz <= 1) api.full(x, y, z, paint(x, y, z));
+          }
+        }
+      }
+      return api;
+    },
+
     // A ring of lying-down rounds that curve inward as they rise: the dome
     // cap used on the rocket nose and tree crown.
     domeRing(y, x0, z0, x1, z1, c) {
@@ -106,49 +130,50 @@ function maker() {
 function rocket() {
   const m = maker();
 
-  // Engine bell: flares outward at the bottom using upside-down rounds.
-  m.roundLayer(0, CX - 3, CZ - 3, CX + 3, CZ + 3, 14, true);
+  // Lower stage: 5 wide, dark engine section flaring out at the very base.
+  m.roundLayer(0, CX - 2, CZ - 2, CX + 2, CZ + 2, 14, true);
   for (const [x, z, r] of [
     [CX - 3, CZ, UNDER.posX], [CX + 3, CZ, UNDER.negX],
     [CX, CZ - 3, UNDER.posZ], [CX, CZ + 3, UNDER.negZ],
-  ]) m.full(x, 1, z, 14, 3, r);
-  m.roundLayer(1, CX - 2, CZ - 2, CX + 2, CZ + 2, 14, true);
-
-  // Hull: white with cherry bands, rounded corners every layer.
-  for (let y = 2; y <= 12; y++) {
-    const band = y === 5 || y === 6 || y === 10;
-    m.roundLayer(y, CX - 2, CZ - 2, CX + 2, CZ + 2, band ? 0 : 12, true);
+  ]) m.full(x, 0, z, 14, 3, r);
+  for (let y = 1; y <= 2; y++) m.roundLayer(y, CX - 2, CZ - 2, CX + 2, CZ + 2, 14, true);
+  for (let y = 3; y <= 6; y++) {
+    m.roundLayer(y, CX - 2, CZ - 2, CX + 2, CZ + 2, y === 6 ? 0 : 12, true);
   }
 
-  // Porthole on the +Z face: sky half-blocks in a night frame, standing
-  // slightly proud of the hull.
-  for (const [hx, hy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
-    m.half(CX * 2 + hx, 8 * 2 + hy, (CZ + 3) * 2, 6);
-  }
-  for (let q = -1; q <= 4; q++) {
-    m.quarter(CX * 4 + q, 8 * 4 - 1, (CZ + 3) * 4, 15);
-    m.quarter(CX * 4 + q, 10 * 4, (CZ + 3) * 4, 15);
+  // Upper stage: 3 wide, so the whole thing is tall and slim rather than
+  // squat. A cherry band breaks up the white.
+  for (let y = 7; y <= 15; y++) {
+    m.roundLayer(y, CX - 1, CZ - 1, CX + 1, CZ + 1, y === 11 || y === 12 ? 0 : 12, true);
   }
 
-  // Nose: taper 5 wide -> 3 wide -> dome -> tip.
-  m.roundLayer(13, CX - 1, CZ - 1, CX + 1, CZ + 1, 0, true);
-  m.domeRing(14, CX - 1, CZ - 1, CX + 1, CZ + 1, 0);
-  m.full(CX, 15, CZ, 0);
-  m.half(CX * 2, 16 * 2, CZ * 2, 2).half(CX * 2 + 1, 16 * 2, CZ * 2, 2);
-  m.half(CX * 2, 16 * 2, CZ * 2 + 1, 2).half(CX * 2 + 1, 16 * 2, CZ * 2 + 1, 2);
-  // Tip sits directly on the half blocks below (block y 16.5), not a whole
-  // block up — otherwise it floats.
-  m.quarter(CX * 4 + 1, 16 * 4 + 2, CZ * 4 + 1, 2).quarter(CX * 4 + 2, 16 * 4 + 2, CZ * 4 + 1, 2);
+  // Nose cone: dome in, capstone, tip — a continuous taper, not a knob.
+  m.domeRing(16, CX - 1, CZ - 1, CX + 1, CZ + 1, 0);
+  m.roundLayer(17, CX, CZ, CX, CZ, 0, true);
+  for (const hx of [CX * 2, CX * 2 + 1]) {
+    for (const hz of [CZ * 2, CZ * 2 + 1]) m.half(hx, 18 * 2, hz, 2);
+  }
+  m.quarter(CX * 4 + 1, 18 * 4 + 2, CZ * 4 + 1, 2).quarter(CX * 4 + 2, 18 * 4 + 2, CZ * 4 + 1, 2);
 
-  // Four big swept fins: a tall inner root, a shorter outer step, and wedges
-  // sweeping down and out from each, so they read against the tall hull.
+  // Porthole: one sky block let into the +Z face of the upper stage, ringed
+  // with quarter blocks so it reads as a window rather than a smudge.
+  m.full(CX, 9, CZ + 1, 6);
+  for (let q = 0; q <= 3; q++) {
+    m.quarter(CX * 4 + q, 8 * 4 + 3, (CZ + 2) * 4 - 1, 15);
+    m.quarter(CX * 4 + q, 10 * 4, (CZ + 2) * 4 - 1, 15);
+    m.quarter(CX * 4 - 1, 9 * 4 + q, (CZ + 2) * 4 - 1, 15);
+    m.quarter((CX + 1) * 4, 9 * 4 + q, (CZ + 2) * 4 - 1, 15);
+  }
+
+  // Four fins in OCEAN blue, so they stand out against the red-and-white
+  // hull instead of disappearing into it.
   for (const [dx, dz, high] of [
     [1, 0, HIGH.negX], [-1, 0, HIGH.posX], [0, 1, HIGH.negZ], [0, -1, HIGH.posZ],
   ]) {
-    for (let y = 2; y <= 6; y++) m.full(CX + dx * 3, y, CZ + dz * 3, 0);
-    m.full(CX + dx * 3, 7, CZ + dz * 3, 0, 1, high);
-    for (let y = 2; y <= 3; y++) m.full(CX + dx * 4, y, CZ + dz * 4, 0);
-    m.full(CX + dx * 4, 4, CZ + dz * 4, 0, 1, high);
+    for (let y = 0; y <= 4; y++) m.full(CX + dx * 3, y, CZ + dz * 3, 7);
+    m.full(CX + dx * 3, 5, CZ + dz * 3, 7, 1, high);
+    for (let y = 0; y <= 2; y++) m.full(CX + dx * 4, y, CZ + dz * 4, 7);
+    m.full(CX + dx * 4, 3, CZ + dz * 4, 7, 1, high);
   }
   return m.cells;
 }
@@ -171,12 +196,17 @@ function house() {
     for (let y = 1; y <= 5; y++) m.full(x, y, z, 11);
   }
 
-  // Arched front door: chocolate frame, rounds forming the arch head.
-  m.fbox(CX - 1, 1, z1, CX + 1, 3, z1, 11);
+  // Arched front door: a narrow chocolate slab with a round arch head, so it
+  // reads as a door rather than a hole in the wall.
+  m.fbox(CX, 1, z1, CX, 3, z1, 11);
+  m.full(CX - 1, 1, z1, 12).full(CX - 1, 2, z1, 12).full(CX - 1, 3, z1, 12);
+  m.full(CX + 1, 1, z1, 12).full(CX + 1, 2, z1, 12).full(CX + 1, 3, z1, 12);
   m.full(CX, 4, z1, 11);
   m.full(CX - 1, 4, z1, 11, 3, CORNER.minmax);
   m.full(CX + 1, 4, z1, 11, 3, CORNER.maxmax);
-  m.half((CX + 1) * 2, 2 * 2 + 1, z1 * 2 + 1, 2);    // door handle
+  // Door handle and a step, both small enough to read at this scale.
+  m.quarter(CX * 4 + 3, 2 * 4 + 2, z1 * 4 + 3, 2);
+  for (const hx of [CX * 2, CX * 2 + 1]) m.half(hx, 0, (z1 + 1) * 2, 13);
 
   // Windows: sky glass with chocolate quarter-block mullions.
   for (const [wx, wz] of [[CX - 3, z1], [CX + 3, z1], [CX - 3, z0], [CX + 3, z0]]) {
@@ -206,9 +236,12 @@ function house() {
     m.half(CX * 2, 12 * 2, z * 2, 11).half(CX * 2 + 1, 12 * 2, z * 2, 11);
     m.half(CX * 2, 12 * 2, z * 2 + 1, 11).half(CX * 2 + 1, 12 * 2, z * 2 + 1, 11);
   }
-  for (let z = z0; z <= z1; z += 2) {
-    m.full(x0 - 1, 5, z, 11, 3, UNDER.posX);
-    m.full(x1 + 1, 5, z, 11, 3, UNDER.negX);
+  // Eaves brackets: tucked directly under the roof overhang at y=6 so they
+  // read as curved corbels supporting it. At y=5 they stuck out into open
+  // air and looked like a row of pegs.
+  for (let z = z0 + 1; z <= z1 - 1; z += 3) {
+    m.full(x0 - 1, 6, z, 11, 3, UNDER.posX);
+    m.full(x1 + 1, 6, z, 11, 3, UNDER.negX);
   }
 
   // Chimney with a rounded cap.
@@ -218,211 +251,222 @@ function house() {
 }
 
 // --- Puppy ---------------------------------------------------------------
-// Rounded head and snout, floppy wedge ears, half-block paws, curled tail.
+// Barrel body and round head as blobs, standing on real legs, with ears
+// that hang DOWN the sides of the head and a tail that curls.
 function puppy() {
   const m = maker();
-  const bz0 = CZ - 1, bz1 = CZ + 1;
 
-  // Legs on snow feet, with half-block toes poking forward. The foot is a
-  // whole block: half-block paws left a gap under the leg.
-  for (const [lx, lz] of [[CX - 2, bz0], [CX - 2, bz1], [CX + 2, bz0], [CX + 2, bz1]]) {
-    m.full(lx, 0, lz, 12);
+  // Legs: two blocks tall so the dog stands rather than sitting on a slab.
+  for (const [lx, lz] of [[CX - 2, CZ - 1], [CX - 2, CZ + 1], [CX + 2, CZ - 1], [CX + 2, CZ + 1]]) {
+    m.full(lx, 0, lz, 12);              // snow paw
     m.full(lx, 1, lz, 11);
-    m.half(lx * 2 + 2, 0, lz * 2, 12).half(lx * 2 + 2, 0, lz * 2 + 1, 12);
+    m.full(lx, 2, lz, 11);
   }
 
-  // Body: rounded along its length, with a paler belly.
-  for (let y = 2; y <= 4; y++) {
-    m.roundLayer(y, CX - 3, bz0, CX + 3, bz1, 11, true);
-  }
-  for (let x = CX - 2; x <= CX + 2; x++) m.full(x, 2, CZ, 12);
+  // Barrel body, tapering toward the rump, with a pale chest and belly.
+  m.blob(CX, 4, CZ, 3.6, 1.9, 1.9, 11);
+  m.blob(CX + 2, 4, CZ, 2.2, 1.7, 1.7, 11);
+  for (let x = CX - 2; x <= CX + 2; x++) m.full(x, 2, CZ, 12);   // belly
+  m.full(CX + 3, 3, CZ, 12).full(CX + 3, 4, CZ, 12);             // chest blaze
 
-  // Neck and rounded head.
-  m.fbox(CX + 4, 3, bz0, CX + 4, 4, bz1, 11);
-  for (let y = 4; y <= 6; y++) m.roundLayer(y, CX + 4, bz0 - 1, CX + 6, bz1 + 1, 11, true);
+  // Head: a rounded 3x3x3 block rather than a blob, so its faces are at
+  // known planes and the face details can be attached to them reliably.
+  const hx0 = CX + 5, hx1 = CX + 7, hz0 = CZ - 1, hz1 = CZ + 1;
+  m.fbox(CX + 4, 4, CZ - 1, CX + 4, 5, CZ + 1, 11);            // neck
+  for (let y = 5; y <= 7; y++) m.roundLayer(y, hx0, hz0, hx1, hz1, 11, true);
 
-  // Snout: rounded, pale, with a night nose and a bubblegum tongue.
-  m.roundLayer(5, CX + 7, CZ - 1, CX + 7, CZ + 1, 12, true);
-  m.half((CX + 8) * 2, 5 * 2 + 1, CZ * 2, 15).half((CX + 8) * 2, 5 * 2 + 1, CZ * 2 + 1, 15);
-  m.half((CX + 8) * 2, 5 * 2, CZ * 2, 10).half((CX + 8) * 2, 5 * 2, CZ * 2 + 1, 10);
+  // Snout: pale muzzle jutting from the head's front face, with a night nose
+  // on its tip and a tongue underneath.
+  m.fbox(hx1 + 1, 5, CZ, hx1 + 1, 6, CZ, 12);
+  m.half((hx1 + 2) * 2, 6 * 2, CZ * 2, 15).half((hx1 + 2) * 2, 6 * 2, CZ * 2 + 1, 15);
+  m.half((hx1 + 2) * 2, 5 * 2, CZ * 2, 10).half((hx1 + 2) * 2, 5 * 2, CZ * 2 + 1, 10);
 
-  // Eyes: quarter blocks so they're the right size for a face.
-  for (const ez of [CZ - 1, CZ + 1]) {
-    m.quarter((CX + 7) * 4, 6 * 4 + 2, ez * 4 + 1, 15);
-    m.quarter((CX + 7) * 4, 6 * 4 + 2, ez * 4 + 2, 15);
+  // Eyes: quarter blocks sat on the head's front face, either side of the
+  // muzzle (that face is exposed at x = hx1 + 1 for z != CZ).
+  for (const ez of [hz0, hz1]) {
+    for (const q of [1, 2]) m.quarter((hx1 + 1) * 4, 7 * 4 + q, ez * 4 + 2, 15);
   }
-  // Floppy ears: wedges sloping down the sides of the head. (No half-block
-  // detail here — placing one inside the head's own cell would delete the
-  // block holding the ear up.)
-  for (const [ez, high] of [[bz0 - 1, HIGH.negZ], [bz1 + 1, HIGH.posZ]]) {
-    m.full(CX + 5, 7, ez, 11, 1, high);
+
+  // Floppy ears: a block on each side of the head with a round hanging below
+  // it, so they droop rather than pointing up like a cat's.
+  for (const [ez, curveOut] of [[hz0 - 1, HIGH.posZ], [hz1 + 1, HIGH.negZ]]) {
+    m.full(CX + 6, 7, ez, 11);
+    m.full(CX + 6, 6, ez, 11, 3, curveOut);
   }
-  // Curled tail: each half block shares a FACE with the last, so the curl
-  // holds together (a diagonal staircase only touches at edges).
+
+  // Curled tail: each piece shares a face with the last, curling up and over.
   const tz = CZ * 2;
-  m.half((CX - 4) * 2 + 1, 8, tz, 11);   // against the body's -X face
   m.half((CX - 4) * 2 + 1, 9, tz, 11);
   m.half((CX - 4) * 2 + 1, 10, tz, 11);
-  m.half((CX - 4) * 2, 10, tz, 11);      // curls outward
-  m.half((CX - 4) * 2, 11, tz, 12);      // white tip
+  m.half((CX - 4) * 2 + 1, 11, tz, 11);
+  m.half((CX - 4) * 2 + 2, 11, tz, 11);
+  m.half((CX - 4) * 2 + 2, 12, tz, 12);
   return m.cells;
 }
 
 // --- Race car ------------------------------------------------------------
-// Long low body with a rounded nose cone, wedge windshield, rounded wheel
-// arches, mirrors and exhausts in small blocks.
+// Low sleek single-seater: pointed nose that tapers in PLAN (not a pile of
+// domes), open cockpit, rear wing, and four wheels standing clear of the
+// body with rounded tyre tops.
 function racecar() {
   const m = maker();
-  const z0 = CZ - 2, z1 = CZ + 2;
+  const z0 = CZ - 1, z1 = CZ + 1;   // body is narrow; wheels sit outside it
 
-  // The tub reaches down to y=1 so it meets the wheels, which sit on the
-  // ground at y=0 — otherwise the whole car hovers.
-  m.fbox(CX - 5, 1, z0, CX + 4, 1, z1, 15);                 // floor pan
-  m.roundLayer(2, CX - 5, z0, CX + 4, z1, 0, true);         // main tub
-  // Nose: three courses narrowing to a rounded point.
-  m.roundLayer(2, CX + 5, CZ - 1, CX + 6, CZ + 1, 0, true);
-  m.domeRing(3, CX + 4, CZ - 1, CX + 5, CZ + 1, 0);
-  m.half((CX + 7) * 2, 2 * 2, CZ * 2, 0).half((CX + 7) * 2, 2 * 2, CZ * 2 + 1, 0);
-  m.half((CX + 7) * 2, 2 * 2 + 1, CZ * 2, 2).half((CX + 7) * 2, 2 * 2 + 1, CZ * 2 + 1, 2);
+  // Floor and main tub, full width at the back, tapering to the nose.
+  m.fbox(CX - 5, 0, z0, CX + 3, 0, z1, 15);
+  m.roundLayer(1, CX - 5, z0, CX + 3, z1, 0, true);
+  // Nose: narrows to one block, then a wedge point — a taper in plan view.
+  m.fbox(CX + 4, 0, CZ, CX + 6, 0, CZ, 15);
+  m.roundLayer(1, CX + 4, CZ, CX + 6, CZ, 0, true);
+  m.full(CX + 7, 1, CZ, 0, 1, HIGH.negX);
+  m.full(CX + 7, 0, CZ, 0);
+  m.half((CX + 4) * 2, 1 * 2, CZ * 2 - 1, 0);              // small front wings
+  m.half((CX + 4) * 2, 1 * 2, (CZ + 1) * 2, 0);
 
-  // Cockpit: raised sides, wedge windshield, dark seat.
-  for (const cz of [z0, z1]) m.fbox(CX - 2, 3, cz, CX + 1, 3, cz, 0);
-  m.fbox(CX - 2, 3, CZ, CX - 1, 3, CZ, 15);
-  for (let z = z0; z <= z1; z++) m.full(CX + 2, 3, z, 6, 1, HIGH.posX);
-  m.roundLayer(4, CX - 3, z0, CX - 2, z1, 0, true);         // headrest fairing
-
-  // Wheels: dark, on the ground, with rounded arches over them.
-  for (const [wx, wz] of [[CX - 4, z0 - 1], [CX - 4, z1 + 1], [CX + 3, z0 - 1], [CX + 3, z1 + 1]]) {
-    m.roundLayer(0, wx, wz, wx + 1, wz, 15, true);
-    m.roundLayer(1, wx, wz, wx + 1, wz, 15, true);
-    // Arch sits straight on top of the wheel (y=2), not a block clear of it.
-    const side = wz < CZ ? HIGH.posZ : HIGH.negZ;
-    m.full(wx, 2, wz, 0, 3, side);
-    m.full(wx + 1, 2, wz, 0, 3, side);
+  // Sidepods, wider than the tub, to give it a racing profile.
+  for (const sz of [z0 - 1, z1 + 1]) {
+    m.roundLayer(1, CX - 3, sz, CX + 1, sz, 0, true);
   }
 
-  // Rear wing on two pylons, each two half blocks tall so they actually
-  // reach the wing above.
+  // Cockpit: dark opening with a wedge windscreen leaning back, and a
+  // headrest fairing behind the driver.
+  m.fbox(CX - 2, 2, CZ, CX, 2, CZ, 15);
+  for (const cz of [z0, z1]) m.fbox(CX - 2, 2, cz, CX, 2, cz, 0);
+  m.full(CX + 1, 2, CZ, 6, 1, HIGH.negX);                  // windscreen
+  m.full(CX + 1, 2, z0, 0).full(CX + 1, 2, z1, 0);
+  m.roundLayer(2, CX - 4, z0, CX - 3, z1, 0, true);
+  m.full(CX - 3, 3, CZ, 0, 3, HIGH.posX);                  // headrest
+
+  // Wheels: 2x2 in profile with rounded tops, standing outside the body so
+  // they read as tyres rather than skirts.
+  for (const wz of [z0 - 2, z1 + 2]) {
+    for (const wx of [CX - 4, CX + 2]) {
+      m.full(wx, 0, wz, 15).full(wx + 1, 0, wz, 15);
+      m.full(wx, 1, wz, 15, 3, HIGH.posX);                 // curve down to -X
+      m.full(wx + 1, 1, wz, 15, 3, HIGH.negX);             // curve down to +X
+      // Axle stub connecting the wheel to the body.
+      const inward = wz < CZ ? wz + 1 : wz - 1;
+      m.half(wx * 2 + 1, 1 * 2, inward * 2 + (wz < CZ ? 0 : 1), 13);
+    }
+  }
+
+  // Rear wing on two pylons.
   for (const pz of [CZ - 1, CZ + 1]) {
-    m.half((CX - 5) * 2 + 1, 6, pz * 2, 14);
-    m.half((CX - 5) * 2 + 1, 7, pz * 2, 14);
+    m.half((CX - 5) * 2 + 1, 4, pz * 2, 14);
+    m.half((CX - 5) * 2 + 1, 5, pz * 2, 14);
   }
-  for (let z = z0; z <= z1; z++) m.full(CX - 5, 4, z, 14);
-  for (const ez of [CZ - 1, CZ + 1]) {
-    m.quarter((CX - 6) * 4 + 3, 2 * 4 + 1, ez * 4 + 2, 13);   // exhausts
+  for (let z = z0 - 1; z <= z1 + 1; z++) m.full(CX - 5, 3, z, 14);
+  for (const ez of [CZ - 1, CZ + 1]) {                      // exhausts
+    m.quarter((CX - 6) * 4 + 3, 1 * 4 + 1, ez * 4 + 2, 13);
   }
-  // Mirrors, sat on the cockpit sides and overlapping their footprint.
-  for (const mz of [z0, z1]) m.half((CX + 1) * 2, 4 * 2, mz * 2, 12);
   return m.cells;
 }
 
 // --- Tree ----------------------------------------------------------------
-// Tapered trunk with root flare, a big rounded two-tone canopy, apples.
+// Tall trunk with a flared root, and a genuinely round dappled crown — a
+// distance-tested blob rather than stacked layers, which read as a pagoda.
 function tree() {
   const m = maker();
+  const bx = CX - 1, bz = CZ - 1;   // trunk occupies bx..bx+1, bz..bz+1
 
-  // Root flare using upside-down rounds, then a tapering trunk.
-  m.fbox(CX - 1, 0, CZ - 1, CX, 0, CZ, 11);
+  // Flared roots, then a tall 2x2 trunk so the crown sits high.
+  m.fbox(bx, 0, bz, bx + 1, 0, bz + 1, 11);
   for (const [x, z, r] of [
-    [CX - 2, CZ - 1, UNDER.posX], [CX - 2, CZ, UNDER.posX],
-    [CX + 1, CZ - 1, UNDER.negX], [CX + 1, CZ, UNDER.negX],
-    [CX - 1, CZ - 2, UNDER.posZ], [CX, CZ - 2, UNDER.posZ],
-    [CX - 1, CZ + 1, UNDER.negZ], [CX, CZ + 1, UNDER.negZ],
+    [bx - 1, bz, UNDER.posX], [bx - 1, bz + 1, UNDER.posX],
+    [bx + 2, bz, UNDER.negX], [bx + 2, bz + 1, UNDER.negX],
+    [bx, bz - 1, UNDER.posZ], [bx + 1, bz - 1, UNDER.posZ],
+    [bx, bz + 2, UNDER.negZ], [bx + 1, bz + 2, UNDER.negZ],
   ]) m.full(x, 0, z, 11, 3, r);
-  for (let y = 1; y <= 4; y++) m.fbox(CX - 1, y, CZ - 1, CX, y, CZ, 11);
-  // A branch stub, so it isn't just a post.
-  m.half((CX + 1) * 2, 4 * 2, CZ * 2, 11).half((CX + 1) * 2 + 1, 4 * 2 + 1, CZ * 2, 11);
+  for (let y = 1; y <= 7; y++) m.fbox(bx, y, bz, bx + 1, y, bz + 1, 11);
 
-  // Canopy: rounded layers, darker at the bottom, lighter on top.
-  m.roundLayer(5, CX - 3, CZ - 3, CX + 2, CZ + 2, 4, true);
-  m.roundLayer(6, CX - 4, CZ - 4, CX + 3, CZ + 3, 4, true);
-  m.roundLayer(7, CX - 4, CZ - 4, CX + 3, CZ + 3, 3, true);
-  m.roundLayer(8, CX - 3, CZ - 3, CX + 2, CZ + 2, 3, true);
-  m.domeRing(9, CX - 2, CZ - 2, CX + 1, CZ + 1, 3);
-  m.domeRing(10, CX - 1, CZ - 1, CX, CZ, 3);
-  // Half-block crown so the top is domed rather than cut flat.
-  for (const hx of [CX * 2 - 1, CX * 2]) {
-    for (const hz of [CZ * 2 - 1, CZ * 2]) m.half(hx, 22, hz, 3);
-  }
+  // Two branches reaching out, so the trunk isn't a bare post.
+  m.full(bx - 1, 6, bz, 11).full(bx - 1, 7, bz, 11);
+  m.full(bx + 2, 5, bz + 1, 11).full(bx + 2, 6, bz + 1, 11);
 
-  // Apples: half blocks pressed against a canopy face, so each one is
-  // genuinely touching a leaf block rather than hanging in the air.
-  // (Canopy at y=6 and y=7 spans x CX-4..CX+3, z CZ-4..CZ+3.)
-  m.half((CX + 4) * 2, 6 * 2, CZ * 2, 0);          // on the +X face
-  m.half((CX - 4) * 2 - 1, 7 * 2, (CZ - 1) * 2, 0); // on the -X face
-  m.half(CX * 2, 7 * 2, (CZ + 4) * 2, 0);           // on the +Z face
-  m.half((CX + 1) * 2, 6 * 2, (CZ - 4) * 2 - 1, 0); // on the -Z face
+  // Crown: one big blob plus two smaller ones for a lumpy, natural outline.
+  // Dappled between two greens instead of banded.
+  const leaves = (x, y, z) => (dapple(x, y, z) < 0.34 ? 4 : 3);
+  m.blob(CX, 11, CZ, 5.2, 4.2, 5.2, leaves);
+  m.blob(CX - 3.5, 9.5, CZ + 1, 2.6, 2.2, 2.6, leaves);
+  m.blob(CX + 3, 10, CZ - 2.5, 2.4, 2.1, 2.4, leaves);
+
+  // Apples: recoloured leaf blocks on the crown surface, so they sit IN the
+  // foliage instead of being cubes glued to the outside.
+  for (const [ax, ay, az] of [
+    [CX + 4, 10, CZ], [CX - 4, 11, CZ + 1], [CX, 9, CZ + 4],
+    [CX + 1, 13, CZ - 1], [CX - 2, 9, CZ - 4],
+  ]) m.full(ax, ay, az, 0);
   return m.cells;
 }
 
 // --- Castle --------------------------------------------------------------
-// Keep with two proper round towers, arched gate, crenellated walls, and a
-// flag. Uses standing rounds all the way up the towers.
+// Square keep with a walkable roof, four fat corner towers with conical
+// roofs, an arched gate with a portcullis, and a flag on one tower. The
+// towers are deliberately only a little taller than the keep — tall thin
+// ones read as chimneys.
 function castle() {
   const m = maker();
   const x0 = CX - 4, x1 = CX + 4, z0 = CZ - 3, z1 = CZ + 3;
+  const KEEP = 7;          // top of the keep walls
+  const TOWER = 10;        // top of the tower walls
 
-  // Keep: rounded-corner walls on a wider plinth.
-  m.roundLayer(0, x0 - 1, z0 - 1, x1 + 1, z1 + 1, 14, true);
-  for (let y = 1; y <= 8; y++) m.roundLayer(y, x0, z0, x1, z1, 13, y === 1);
+  m.roundLayer(0, x0 - 1, z0 - 1, x1 + 1, z1 + 1, 14, true);   // plinth
+  for (let y = 1; y <= KEEP; y++) m.roundLayer(y, x0, z0, x1, z1, 13, y === 1);
+  // Roof over the keep, so it isn't an open box from above.
+  m.fbox(x0 + 1, KEEP + 1, z0 + 1, x1 - 1, KEEP + 1, z1 - 1, 14);
 
-  // Arched gate on the +Z face.
+  // Crenellations around the keep rim, in half blocks for finer teeth.
+  const tooth = (x, z, y) => {
+    for (const hx of [x * 2, x * 2 + 1]) {
+      m.half(hx, y * 2, z * 2, 13).half(hx, y * 2, z * 2 + 1, 13);
+    }
+  };
+  for (let x = x0; x <= x1; x += 2) { tooth(x, z0, KEEP + 1); tooth(x, z1, KEEP + 1); }
+  for (let z = z0 + 2; z <= z1 - 2; z += 2) { tooth(x0, z, KEEP + 1); tooth(x1, z, KEEP + 1); }
+
+  // Arched gate with a portcullis of quarter-block bars.
   m.fbox(CX - 1, 1, z1, CX + 1, 3, z1, 15);
   m.full(CX, 4, z1, 15);
   m.full(CX - 1, 4, z1, 15, 3, CORNER.minmax);
   m.full(CX + 1, 4, z1, 15, 3, CORNER.maxmax);
-  for (let q = 0; q <= 3; q++) m.quarter(CX * 4 + q, 5 * 4, z1 * 4 + 3, 11); // lintel
+  for (let q = 0; q <= 3; q++) m.quarter(CX * 4 + q, 5 * 4, (z1 + 1) * 4, 11);
+  for (let bx = (CX - 1) * 4 + 1; bx <= (CX + 1) * 4 + 2; bx += 2) {
+    for (let by = 1 * 4; by <= 3 * 4 + 3; by += 2) m.quarter(bx, by, (z1 + 1) * 4, 11);
+  }
 
-  // Arrow slits in quarter blocks.
-  for (const [sx, sz] of [[x0, CZ], [x1, CZ], [CX - 3, z0], [CX + 3, z0]]) {
+  // Arrow slits.
+  for (const [sx, sz] of [[x0, CZ], [x1, CZ], [CX - 2, z0], [CX + 2, z0]]) {
     for (let q = 0; q <= 3; q++) {
       m.quarter(sx * 4 + (sx === x1 ? 3 : 0), 5 * 4 + q, sz * 4 + 2, 15);
     }
   }
 
-  // Crenellations in half blocks — finer teeth than whole blocks allow.
-  for (let x = x0; x <= x1; x++) {
-    for (const z of [z0, z1]) {
-      if ((x - x0) % 2 === 0) {
-        m.half(x * 2, 9 * 2, z * 2, 13).half(x * 2, 9 * 2, z * 2 + 1, 13);
-        m.half(x * 2 + 1, 9 * 2, z * 2, 13).half(x * 2 + 1, 9 * 2, z * 2 + 1, 13);
-      }
+  // Four fat (3x3) corner towers with cone roofs.
+  const towers = [
+    [x0 - 1, z0 - 1], [x1 - 1, z0 - 1], [x0 - 1, z1 - 1], [x1 - 1, z1 - 1],
+  ];
+  for (const [tx, tz] of towers) {
+    for (let y = 0; y <= TOWER; y++) {
+      m.roundLayer(y, tx, tz, tx + 2, tz + 2, 13, true);
     }
-  }
-  for (let z = z0 + 1; z <= z1 - 1; z++) {
-    for (const x of [x0, x1]) {
-      if ((z - z0) % 2 === 0) {
-        m.half(x * 2, 9 * 2, z * 2, 13).half(x * 2 + 1, 9 * 2, z * 2, 13);
-        m.half(x * 2, 9 * 2, z * 2 + 1, 13).half(x * 2 + 1, 9 * 2, z * 2 + 1, 13);
-      }
-    }
-  }
-
-  // Two round towers on the front corners, taller than the keep, each with
-  // a conical wedge roof.
-  for (const tx of [x0 - 1, x1 - 1]) {
-    for (let y = 0; y <= 11; y++) {
-      m.roundLayer(y, tx, z1, tx + 1, z1 + 1, y % 4 === 3 ? 14 : 13, true);
-    }
-    // Battlement ring, then a cone.
-    m.roundLayer(12, tx, z1, tx + 1, z1 + 1, 13, true);
-    m.full(tx, 13, z1, 0, 3, CORNER.minmin);
-    m.full(tx + 1, 13, z1, 0, 3, CORNER.maxmin);
-    m.full(tx + 1, 13, z1 + 1, 0, 3, CORNER.maxmax);
-    m.full(tx, 13, z1 + 1, 0, 3, CORNER.minmax);
-    m.half(tx * 2 + 1, 14 * 2, z1 * 2 + 1, 0);
+    // Cone: a domed ring, then a capstone, then a small tip.
+    m.domeRing(TOWER + 1, tx, tz, tx + 2, tz + 2, 0);
+    m.roundLayer(TOWER + 2, tx + 1, tz + 1, tx + 1, tz + 1, 0, true);
+    m.half((tx + 1) * 2, (TOWER + 3) * 2, (tz + 1) * 2, 0);
+    m.half((tx + 1) * 2 + 1, (TOWER + 3) * 2, (tz + 1) * 2, 0);
+    m.half((tx + 1) * 2, (TOWER + 3) * 2, (tz + 1) * 2 + 1, 0);
+    m.half((tx + 1) * 2 + 1, (TOWER + 3) * 2, (tz + 1) * 2 + 1, 0);
   }
 
-  // Flag on a pole, standing on the keep's rear wall. The pole starts with a
-  // whole block at y=9 (replacing that crenellation) so it isn't left half a
-  // block clear of the half-block teeth, and the flag overlaps the pole's own
-  // height range so the two actually share a face.
-  m.full(x1, 9, z0, 13);
-  for (let y = 10; y <= 13; y++) m.full(x1, y, z0, 11);
-  for (const hy of [24, 25]) {
-    for (const hx of [x1 * 2 - 2, x1 * 2 - 1]) {
-      m.half(hx, hy, z0 * 2, 9).half(hx, hy, z0 * 2 + 1, 9);
-    }
+  // Flag on the front-right tower: a SLIM half-block pole (a whole-block one
+  // read as a chimney and dominated the whole castle) with a small pennant.
+  const [fx, fz] = towers[3];
+  const px = (fx + 1) * 2, pz = (fz + 1) * 2;
+  for (const hy of [(TOWER + 3) * 2, (TOWER + 3) * 2 + 1, (TOWER + 4) * 2]) {
+    m.half(px, hy, pz, 14);
+  }
+  for (const hy of [(TOWER + 3) * 2 + 1, (TOWER + 4) * 2]) {
+    m.half(px - 1, hy, pz, 9).half(px - 2, hy, pz, 9);
   }
   return m.cells;
 }
