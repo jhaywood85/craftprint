@@ -810,4 +810,23 @@ window.craft = {
   walkBreak, walkPlace, walkPaint, walkPickColor, pickCenter,
   stepPlayer: (dt) => { player.step(dt, input, world); player.syncCamera(camera); },
   doActionFromHit,
+  // Scene handles, so automated checks can frame a build from a chosen angle
+  // instead of only seeing the default overview.
+  camera, controls, scene, renderer,
+  // Point the orbit camera at the current build from a given direction,
+  // filling the frame. dir is a [x, y, z] vector; pad > 1 zooms out.
+  frameBuild(dir = [1, 0.55, 1], pad = 1.25) {
+    const b = world.bounds();
+    if (!b) return null;
+    const mid = [0, 1, 2].map((i) => (b.min[i] + b.max[i]) / 2 / Q);
+    const span = Math.max(...[0, 1, 2].map((i) => (b.max[i] - b.min[i]) / Q));
+    const target = new THREE.Vector3(mid[0] - OFF, mid[1], mid[2] - OFF);
+    const dist = (span * pad) / (2 * Math.tan((camera.fov * Math.PI / 180) / 2)) + span * 0.5;
+    const v = new THREE.Vector3(...dir).normalize().multiplyScalar(dist);
+    camera.position.copy(target).add(v);
+    controls.target.copy(target);
+    controls.update();
+    camera.lookAt(target);
+    return { target: target.toArray(), span, dist };
+  },
 };
