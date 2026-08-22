@@ -208,40 +208,50 @@ function house() {
   m.quarter(CX * 4 + 3, 2 * 4 + 2, z1 * 4 + 3, 2);
   for (const hx of [CX * 2, CX * 2 + 1]) m.half(hx, 0, (z1 + 1) * 2, 13);
 
-  // Windows: sky glass with chocolate quarter-block mullions.
+  // Windows: sky glass with a chocolate glazing bar stuck PROUD of the glass
+  // (a bar inside the glass cell would replace the glass block, leaving a
+  // hole with a wobbly quarter column in it).
   for (const [wx, wz] of [[CX - 3, z1], [CX + 3, z1], [CX - 3, z0], [CX + 3, z0]]) {
     m.fbox(wx, 2, wz, wx, 3, wz, 6);
-    for (let q = 0; q <= 4; q++) m.quarter(wx * 4 + 2, 2 * 4 + q, wz * 4 + (wz === z1 ? 3 : 0), 11);
+    const bz = wz === z1 ? (wz + 1) * 4 : wz * 4 - 1; // just outside the glass
+    for (let q = 0; q <= 4; q++) m.quarter(wx * 4 + 2, 2 * 4 + q, bz, 11);
   }
   for (const wx of [x0, x1]) {                       // side windows
     m.fbox(wx, 2, CZ, wx, 3, CZ, 6);
-    for (let q = 0; q <= 4; q++) m.quarter(wx * 4 + (wx === x1 ? 3 : 0), 2 * 4 + q, CZ * 4 + 2, 11);
+    const bx = wx === x1 ? (wx + 1) * 4 : wx * 4 - 1;
+    for (let q = 0; q <= 4; q++) m.quarter(bx, 2 * 4 + q, CZ * 4 + 2, 11);
   }
 
   // Overhanging gable roof: each course steps in by one, with wedges on the
   // outer edge, and it starts one block wider than the walls.
   const eaves = 6;
-  for (let i = 0; i <= 5; i++) {
+  for (let i = 0; i <= 4; i++) {
     const y = eaves + i;
     const inset = 5 - i;      // half-width of this course
     const rz0 = z0 - (i === 0 ? 1 : 0), rz1 = z1 + (i === 0 ? 1 : 0);
+    const over = i === 0 ? 1 : 0; // the eaves course overhangs the walls
     for (let z = rz0; z <= rz1; z++) {
-      m.full(CX - inset, y, z, 0, 1, HIGH.posX);
-      m.full(CX + inset, y, z, 0, 1, HIGH.negX);
-      for (let x = CX - inset + 1; x <= CX + inset - 1; x++) m.full(x, y, z, 0);
+      m.full(CX - inset - over, y, z, 0, 1, HIGH.posX);
+      m.full(CX + inset + over, y, z, 0, 1, HIGH.negX);
+      for (let x = CX - inset - over + 1; x <= CX + inset + over - 1; x++) m.full(x, y, z, 0);
     }
   }
-  // Ridge cap in half blocks, and curved brackets under the eaves.
+  // Ridge: a half-height red spine on the flat top course, capped in
+  // chocolate half blocks. (Capping a wedge apex would only touch along its
+  // top edge — a line, which snaps off a print.)
   for (let z = z0; z <= z1; z++) {
-    m.half(CX * 2, 12 * 2, z * 2, 11).half(CX * 2 + 1, 12 * 2, z * 2, 11);
-    m.half(CX * 2, 12 * 2, z * 2 + 1, 11).half(CX * 2 + 1, 12 * 2, z * 2 + 1, 11);
+    for (const hz of [z * 2, z * 2 + 1]) {
+      m.half(CX * 2, 22, hz, 0).half(CX * 2 + 1, 22, hz, 0);
+      m.half(CX * 2, 23, hz, 11).half(CX * 2 + 1, 23, hz, 11);
+    }
   }
-  // Eaves brackets: tucked directly under the roof overhang at y=6 so they
-  // read as curved corbels supporting it. At y=5 they stuck out into open
-  // air and looked like a row of pegs.
+  // Eaves brackets: curved corbels at y=5, backs against the wall and tops
+  // carrying the overhanging eaves course above — attached on two full faces
+  // (beside the wedge at the same height they only touched its bottom edge,
+  // which is a line, not a joint).
   for (let z = z0 + 1; z <= z1 - 1; z += 3) {
-    m.full(x0 - 1, 6, z, 11, 3, UNDER.posX);
-    m.full(x1 + 1, 6, z, 11, 3, UNDER.negX);
+    m.full(x0 - 1, 5, z, 11, 3, UNDER.posX);
+    m.full(x1 + 1, 5, z, 11, 3, UNDER.negX);
   }
 
   // Chimney with a rounded cap.
@@ -281,10 +291,12 @@ function puppy() {
   m.half((hx1 + 2) * 2, 6 * 2, CZ * 2, 15).half((hx1 + 2) * 2, 6 * 2, CZ * 2 + 1, 15);
   m.half((hx1 + 2) * 2, 5 * 2, CZ * 2, 10).half((hx1 + 2) * 2, 5 * 2, CZ * 2 + 1, 10);
 
-  // Eyes: quarter blocks sat on the head's front face, either side of the
-  // muzzle (that face is exposed at x = hx1 + 1 for z != CZ).
-  for (const ez of [hz0, hz1]) {
-    for (const q of [1, 2]) m.quarter((hx1 + 1) * 4, 7 * 4 + q, ez * 4 + 2, 15);
+  // Eyes: quarter blocks on the head's front face, just above the muzzle.
+  // Only the middle column of the rounded head has a FLAT front face — the
+  // outer columns are standing rounds, and an eye on a curved cheek only
+  // touches along a line (it would fall off the print).
+  for (const eq of [CZ * 4, CZ * 4 + 3]) {
+    for (const q of [1, 2]) m.quarter((hx1 + 1) * 4, 7 * 4 + q, eq, 15);
   }
 
   // Floppy ears: a block on each side of the head with a round hanging below
@@ -320,8 +332,10 @@ function racecar() {
   m.roundLayer(1, CX + 4, CZ, CX + 6, CZ, 0, true);
   m.full(CX + 7, 1, CZ, 0, 1, HIGH.negX);
   m.full(CX + 7, 0, CZ, 0);
-  m.half((CX + 4) * 2, 1 * 2, CZ * 2 - 1, 0);              // small front wings
-  m.half((CX + 4) * 2, 1 * 2, (CZ + 1) * 2, 0);
+  // Small front wings, on the cube segment of the nose (the segment behind
+  // the tip is a corner round — a wing on its curved side wouldn't hold).
+  m.half((CX + 5) * 2, 1 * 2, CZ * 2 - 1, 0);
+  m.half((CX + 5) * 2, 1 * 2, (CZ + 1) * 2, 0);
 
   // Sidepods, wider than the tub, to give it a racing profile.
   for (const sz of [z0 - 1, z1 + 1]) {
@@ -356,8 +370,10 @@ function racecar() {
     m.half((CX - 5) * 2 + 1, 5, pz * 2, 14);
   }
   for (let z = z0 - 1; z <= z1 + 1; z++) m.full(CX - 5, 3, z, 14);
-  for (const ez of [CZ - 1, CZ + 1]) {                      // exhausts
-    m.quarter((CX - 6) * 4 + 3, 1 * 4 + 1, ez * 4 + 2, 13);
+  // Exhausts: on the flat back face of the tub's middle block (the tail
+  // corners are standing rounds — nothing sticks to their curve).
+  for (const eq of [CZ * 4, CZ * 4 + 3]) {
+    m.quarter((CX - 5) * 4 - 1, 1 * 4 + 1, eq, 13);
   }
   return m.cells;
 }

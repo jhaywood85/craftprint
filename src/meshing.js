@@ -152,12 +152,17 @@ export class WorldRenderer {
     return null;
   }
 
-  update(world) {
+  // opts.hideAbove (quarter units): the see-inside cutaway — blocks whose
+  // anchor starts at or above the cut level aren't drawn (or picked), so you
+  // can peel a build open layer by layer and even edit the inside.
+  update(world, opts = {}) {
+    const hideAbove = opts.hideAbove ?? Infinity;
     // Grow layer capacity first (recreating a mesh mid-fill would drop data).
     const totals = {};
     const counts = {};
     for (const shape of SHAPE_IDS) { totals[shape] = 0; counts[shape] = 0; }
     world.forEach((x, y, z, rec) => {
+      if (y >= hideAbove) return;
       totals[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
     });
     for (const shape of SHAPE_IDS) {
@@ -167,6 +172,7 @@ export class WorldRenderer {
     for (const shape of SHAPE_IDS) this.meshes.push(this.layers[shape].mesh);
 
     world.forEach((x, y, z, rec) => {
+      if (y >= hideAbove) return;
       const layer = this.layers[rec.s] || this.layers[SHAPE_CUBE];
       const i = counts[rec.s in this.layers ? rec.s : SHAPE_CUBE]++;
       const size = rec.g / Q; // edge length in world units

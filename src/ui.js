@@ -202,6 +202,66 @@ export function setupUI(app, { firstRun }) {
     redoBtn.disabled = !app.undoStack.canRedo;
   });
 
+  // ---------------------------------------------------- loose-pieces chip
+  // main.js re-checks the structure after every change and calls onStructure.
+  // The chip shows how many blocks aren't REALLY attached (corner/edge/slope
+  // contact doesn't hold a print together); tapping it flashes them.
+  const looseChip = $('looseChip');
+  function onStructure({ loose }) {
+    looseChip.classList.toggle('hidden', loose.length === 0);
+    if (loose.length === 0) return;
+    looseChip.textContent = `🧩 ${loose.length} loose`;
+    // First time a kid makes a loose piece, explain the rule once.
+    const settings = storage.loadSettings();
+    if (!settings.looseTipShown) {
+      settings.looseTipShown = true;
+      storage.saveSettings(settings);
+      toast('🧩 Red blocks aren’t stuck on! Blocks need to share a flat side — corners alone fall apart when printed.', 6000);
+    }
+  }
+  looseChip.addEventListener('click', () => {
+    app.sounds.click();
+    app.highlightCells(app.structure.loose);
+    toast('🧩 The flashing blocks need a flat side to hold onto — or use 🩹 Glue it on the Print screen!', 4500);
+  });
+
+  // ------------------------------------------------------ see-inside cutaway
+  // Camera-view slider that peels the build open from the top, layer by
+  // layer, so kids can check (and fill) the inside of their models.
+  const insidePanel = $('insidePanel');
+  const insideSlider = $('insideSlider');
+  let insideMax = 1;
+  function openInsideView() {
+    const b = app.world.bounds();
+    insideMax = b ? b.max[1] : 4;
+    insideSlider.max = String(insideMax);
+    insideSlider.value = String(insideMax);
+    insidePanel.classList.remove('hidden');
+    $('insideBtn').classList.add('selected');
+    app.setCutY(null);
+  }
+  function resetInsideView() {
+    insidePanel.classList.add('hidden');
+    $('insideBtn').classList.remove('selected');
+    app.setCutY(null);
+  }
+  function toggleInsideView() {
+    app.sounds.click();
+    if (insidePanel.classList.contains('hidden')) {
+      if (app.world.count === 0) { toast('🙂 Build something first!'); return; }
+      openInsideView();
+      toast('👀 Slide down to peel away the top layers — you can build inside, too!', 4500);
+    } else {
+      resetInsideView();
+    }
+  }
+  $('insideBtn').addEventListener('click', toggleInsideView);
+  $('insideDoneBtn').addEventListener('click', () => { app.sounds.click(); resetInsideView(); });
+  insideSlider.addEventListener('input', () => {
+    const v = Number(insideSlider.value);
+    app.setCutY(v >= insideMax ? null : v);
+  });
+
   // ------------------------------------------------------------------ sound
   const soundBtn = $('soundBtn');
   const settings = storage.loadSettings();
@@ -804,24 +864,53 @@ export function setupUI(app, { firstRun }) {
     });
   }
 
-  let floatingCache = [];
+  // Print-check: uses the real contact-area analysis (structure.js) that
+  // main.js keeps fresh in app.structure — loose pieces would print as
+  // separate bits, skinny joints may snap.
+  function updatePrintCheck() {
+    const { loose, skinny } = app.structure;
+    const warn = $('floatWarning');
+    warn.classList.toggle('hidden', loose.length === 0);
+    if (loose.length > 0) {
+      $('floatCount').textContent =
+        `${loose.length} block${loose.length > 1 ? 's aren’t' : ' isn’t'} really stuck on — corners and edges don't hold! They'll fall off when printed.`;
+    }
+    const skinnyWarn = $('skinnyWarning');
+    skinnyWarn.classList.toggle('hidden', skinny.length === 0);
+    if (skinny.length > 0) {
+      $('skinnyCount').textContent =
+        `${skinny.length > 2 ? 'Some parts hang' : 'A part hangs'} on a tiny joint that might snap — make it thicker!`;
+    }
+  }
+
   $('printBtn').addEventListener('click', () => {
     app.sounds.click();
     if (app.world.count === 0) { toast('🙂 Build something first, then print it!'); return; }
-    floatingCache = app.world.floatingCells();
-    const warn = $('floatWarning');
-    warn.classList.toggle('hidden', floatingCache.length === 0);
-    if (floatingCache.length > 0) {
-      $('floatCount').textContent =
-        `${floatingCache.length} block${floatingCache.length > 1 ? 's are' : ' is'} floating in the air — they'll fall off when printed!`;
-    }
+    updatePrintCheck();
     updateExportInfo();
     openModal('exportModal');
   });
 
   $('showFloating').addEventListener('click', () => {
     closeModals();
-    app.highlightCells(floatingCache);
+    app.highlightCells(app.structure.loose);
+  });
+
+  $('showSkinny').addEventListener('click', () => {
+    closeModals();
+    app.highlightCells(app.structure.skinny, '#ff9d2e');
+  });
+
+  $('glueBtn').addEventListener('click', () => {
+    app.sounds.click();
+    const added = app.glueLoose();
+    updatePrintCheck();
+    if (added > 0) {
+      app.sounds.tada();
+      toast(`🩹 Glued! Added ${added} bridging block${added > 1 ? 's' : ''} — Undo if you'd rather fix it yourself.`, 5000);
+    } else {
+      toast('🤔 Couldn’t find a way to glue those — try connecting them with blocks yourself.');
+    }
   });
 
   function slugName() {
@@ -922,6 +1011,7 @@ export function setupUI(app, { firstRun }) {
       if (e.key.toLowerCase() === 'r') { app.rotate(); app.sounds.click(); return; }
       if (e.key.toLowerCase() === 't') { app.tip(); app.sounds.click(); return; }
       if (e.key.toLowerCase() === 'q') { toggleShape(); return; }
+      if (e.key.toLowerCase() === 'i') { toggleInsideView(); return; }
 
       // Tool keys only make sense in orbit mode (walk mode: LMB breaks,
       // RMB places like Minecraft, F paints — and WASD owns most letters).
@@ -942,6 +1032,8 @@ export function setupUI(app, { firstRun }) {
     cycleSize,
     toast,
     onModeChange,
+    onStructure,
+    resetInsideView,
     hideModeToggle: () => { modeBtn.style.display = 'none'; },
   };
 }

@@ -95,7 +95,16 @@
   <button class="btn tool" data-tool="paint" title="Paint — click blocks to recolor them (P)"><span class="glyph">🎨</span><span class="key-hint">P</span><span class="label">Paint</span></button>
   <div class="divider"></div>
   <button id="mirrorBtn" class="btn tool" title="Mirror mode — build both sides at once (M)"><span class="glyph">🦋</span><span class="key-hint">M</span><span class="label">Mirror</span></button>
+  <button id="insideBtn" class="btn tool" title="See inside — peel the build open layer by layer (I)"><span class="glyph">👀</span><span class="key-hint">I</span><span class="label">Inside</span></button>
 </nav>
+
+<!-- See-inside cutaway slider (camera view): slide down to peel away the top
+     layers and look — or build — inside the model. -->
+<div id="insidePanel" class="inside-panel hud hidden">
+  <span class="inside-title">👀 Looking inside — slide to peel layers</span>
+  <input id="insideSlider" type="range" min="1" max="128" step="1" value="128" aria-label="Cutaway height">
+  <button id="insideDoneBtn" class="btn small">Done</button>
+</div>
 
 <!-- Undo / redo live outside the camera-mode tool rail so they're reachable
      while walking too — on a tablet there's no Ctrl+Z, so this is the only
@@ -120,6 +129,10 @@
 </div>
 
 <div id="counter" class="counter hud">🧱 0</div>
+<!-- Live "loose pieces" warning chip: blocks that don't REALLY touch the rest
+     (corner-to-corner, edge-on-a-slope) would fall off the print. Tap to
+     flash them in the world. -->
+<button id="looseChip" class="loose-chip hud hidden" title="These blocks aren't stuck on properly — tap to see them">🧩 0 loose</button>
 <div id="toasts"></div>
 
 <div id="overlay" class="overlay hidden">
@@ -169,6 +182,11 @@
     <div id="floatWarning" class="warning hidden">
       ⚠️ <span id="floatCount"></span>
       <button id="showFloating" class="btn small">👀 Show me</button>
+      <button id="glueBtn" class="btn small primary">🩹 Glue it</button>
+    </div>
+    <div id="skinnyWarning" class="warning soft hidden">
+      🦴 <span id="skinnyCount"></span>
+      <button id="showSkinny" class="btn small">👀 Show me</button>
     </div>
     <div class="export-buttons">
       <button id="download3mfBtn" class="btn primary big">🌈 Color file (Bambu)</button>
@@ -322,6 +340,7 @@
     <ul class="bullets">
       <li>🧱 Pick <b>Build / Erase / Paint</b>, then click the ground or a block</li>
       <li>🔄 Drag to spin, scroll to zoom, right-drag to slide • quick right-click erases</li>
+      <li>👀 <b>Inside</b> (or <b>I</b>) peels the build open layer by layer — great for checking (and filling!) hollow builds. Slide back up or press Done to close it.</li>
     </ul>
     <h3>🔺 Shapes &amp; sizes (both views)</h3>
     <ul class="bullets">
@@ -333,6 +352,7 @@
     <ul class="bullets">
       <li>🦋 <b>Mirror</b> (M): build both sides at once — wedges flip to mirror too, great for roofs and ships!</li>
       <li>↩️ <b>Ctrl+Z</b> undo, <b>Ctrl+Shift+Z</b> redo • 📦 <b>My Stuff</b> saves your builds</li>
+      <li>🧩 Blocks that only touch at a corner, an edge, or on a slope <b>aren't really stuck together</b> — they glow red and a “🧩 loose” chip appears (tap it to flash them). Give them a flat side to share, or press <b>🩹 Glue it</b> in the Print screen to fix them automatically!</li>
       <li>💾 In <b>My Stuff</b>, <b>⬇️ Design file</b> downloads your build as a file you can keep, share with friends, or move to another device — <b>⬆️ Open design file</b> loads it back in, ready to edit (unlike the printed STL, a design file keeps all the blocks)</li>
       <li>🏫 <b>Class</b> (top bar): students scan the teacher's QR code with the tablet camera (or type the room code) plus their first name, build, then <b>🖐 Hand in</b> — the teacher collects every design on one screen and downloads them all, ready to 3D print. No accounts or passwords, just first names.</li>
     </ul>
@@ -341,7 +361,7 @@
       <li>“Print It!” downloads a watertight binary STL, already rotated Z-up and sitting on the bed — drop it straight into your slicer.</li>
       <li><b>✨ Soft edges</b> adds a tiny (0.3 mm) bevel along every exposed block edge — corners print less sharp, and block seams show as fine grooves so the model keeps its built-from-bricks look. The grooves are cosmetic only: touching blocks overlap internally by 0.3 mm so the slicer fuses them into one strong solid. Turn it off for perfectly flat, seamless surfaces.</li>
       <li>The size chips set the edge length of one block (3 / 5 / 8 mm). The dialog shows the final printed size in cm.</li>
-      <li>Floating blocks (not connected to the ground) print as separate loose pieces — the export dialog warns about them and can highlight them.</li>
+      <li>Loose pieces: the app measures the REAL contact area between blocks (a corner, an edge, or a cube resting on a slope doesn't count), warns live with a red glow + “🧩 loose” chip, and the export dialog can auto-fix with <b>🩹 Glue it</b> (undo-able bridging blocks). It also flags <b>skinny joints</b> — parts hanging on a tiny contact patch that may snap; make those thicker.</li>
       <li>Big overhangs may need supports in your slicer, just like any print.</li>
       <li>Colors are for fun on screen — the STL is a single solid. Pause-at-height still works great for layered color!</li>
       <li>Everything is saved in this browser automatically (plus 📦 My Stuff for keepers). No internet needed.</li>

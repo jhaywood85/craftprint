@@ -510,6 +510,55 @@ body.touch-device .key-hint { display: none; }
 
 /* ------------------------------------------------------------------ toasts */
 
+/* Live "loose pieces" chip: sits above the block counter and pulses gently —
+   it means some blocks aren't REALLY attached and would fall off the print. */
+.loose-chip {
+  position: fixed;
+  right: 16px;
+  bottom: 74px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: #e5533d;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  box-shadow: 0 4px 0 var(--ink-35);
+  cursor: pointer;
+  transform: rotate(-1.5deg);
+  animation: loosePulse 1.6s ease-in-out infinite;
+}
+.loose-chip.hidden { display: none; }
+@keyframes loosePulse {
+  0%, 100% { transform: rotate(-1.5deg) scale(1); }
+  50% { transform: rotate(-1.5deg) scale(1.07); }
+}
+
+/* See-inside cutaway slider (camera view). */
+.inside-panel {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--paper-t);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  padding: 10px 16px;
+  box-shadow: 0 5px 0 var(--ink-35);
+  max-width: min(92vw, 560px);
+}
+.inside-panel.hidden { display: none; }
+.inside-title { font-size: 14px; font-weight: 700; white-space: nowrap; }
+#insideSlider { width: 180px; accent-color: #4fc3f7; }
+@media (max-width: 700px) {
+  .inside-title { display: none; }
+  #insideSlider { width: 140px; }
+}
+
 #toasts {
   position: fixed;
   top: 78px;
@@ -793,6 +842,9 @@ body.touch-device .welcome-touch { display: block; }
 }
 .warning.hidden { display: none; }
 
+/* Softer (orange) warning: worth knowing, not fatal — skinny joints. */
+.warning.soft { background: #ffe8d1; border-color: #e07a2e; }
+
 .fine { font-size: 13px; opacity: 0.65; margin-top: 12px; line-height: 1.4; }
 
 .export-buttons {
@@ -861,6 +913,7 @@ body.touch-device .welcome-touch { display: block; }
   .tool .glyph { font-size: 22px; }
   .palette { max-width: calc(100vw - 40px); bottom: 10px; }
   .counter { display: none; }
+  .loose-chip { bottom: 76px; right: 12px; font-size: 14px; }
 }
 
 /* Phone-ish / iPad portrait narrow: drop the logo and let the top bar wrap
