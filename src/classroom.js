@@ -113,7 +113,11 @@ export function joinURL(code) {
 // open rooms on a shared server (see server/README.md).
 export async function health() {
   const data = await api('/health');
-  return { ok: data?.service === 'craftprint-class', needsPasscode: !!data?.needsPasscode };
+  return {
+    ok: data?.service === 'craftprint-class',
+    needsPasscode: !!data?.needsPasscode,
+    login: !!data?.login, // server supports "Sign in with Google" accounts
+  };
 }
 
 async function api(path, { method = 'GET', body, teacherKey } = {}) {

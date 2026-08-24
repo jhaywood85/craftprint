@@ -903,6 +903,12 @@ body.touch-device .welcome-touch { display: block; }
 
 .empty { grid-column: 1 / -1; text-align: center; opacity: 0.6; }
 
+/* Cloud saves (teacher accounts) inside My Stuff. */
+.cloud-section { margin-top: 18px; border-top: 2px dashed var(--ink-35); padding-top: 4px; }
+.cloud-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
+.cloud-who { flex: 1; min-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-card { padding-top: 8px; }
+
 /* -------------------------------------------------------------- responsive */
 
 /* Tablets / small laptops (covers iPad landscape at 1024px): tighten the top
