@@ -19,11 +19,11 @@
 
 import * as storage from './storage.js';
 
-// Bake your deployed server address here (e.g. after `wrangler deploy`) and
-// every device using this copy of the app gets Classroom with zero setup.
-// Teachers can still point an individual device elsewhere in the Class
-// screen, and join links/QR codes carry the address regardless.
-export const DEFAULT_SERVER = '';
+// The deployed server every copy of this app uses out of the box — Classroom
+// (and teacher accounts, once its Google secrets are set) work with zero
+// device setup. Teachers can still point an individual device at a different
+// server in the Class screen, and join links/QR codes carry the address.
+export const DEFAULT_SERVER = 'https://craftprint-class.craftprint.workers.dev';
 
 // Read state, migrating the original single-class shape
 // ({ code, teacherKey } / { code, student }) so nobody loses a live class.
