@@ -1,0 +1,24 @@
+# Test gate: run the full suite on every PR and push, so a red check shows
+# before merging. Deployment itself is handled by Cloudflare's Git
+# integration (Workers Builds), which builds and deploys main on push using:
+#   build:  npm test && ./scripts/build-app.sh
+#   deploy: npx wrangler deploy        (config: server/wrangler.toml)
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - name: App bundle builds
+        run: ./scripts/build-app.sh

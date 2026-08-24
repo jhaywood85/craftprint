@@ -16,11 +16,13 @@ import { serverURL } from './classroom.js';
 export const info = () => storage.loadAccount() || null;
 export const signedIn = () => !!info()?.token;
 
-// Where to send the browser to start the Google sign-in dance.
-export function signInURL() {
+// Where to send the browser to start the Google sign-in dance. `back` tags
+// the return URL so the app can reopen the screen the user started from
+// (e.g. 'class' brings a teacher back to the Class screen, not My Stuff).
+export function signInURL(back) {
   const base = serverURL();
   if (!base) return null;
-  const here = `${location.origin}${location.pathname}`;
+  const here = `${location.origin}${location.pathname}${back ? `?back=${back}` : ''}`;
   return `${base}/api/auth/google/start?return=${encodeURIComponent(here)}`;
 }
 
@@ -64,13 +66,7 @@ async function api(path, { method = 'GET', body, auth = true } = {}) {
 
 // --- cloud designs -----------------------------------------------------------
 
-// Stable id from the design name, so saving "Rocket" again updates the same
-// cloud entry (newest version wins — same rule as classroom hand-ins).
-export const designId = (name) => String(name).toLowerCase()
-  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'design';
-
-export const listDesigns = () => api('/designs');
-export const saveDesign = (name, blocks) =>
-  api(`/designs/${designId(name)}`, { method: 'PUT', body: { name, blocks } });
-export const deleteDesign = (id) =>
-  api(`/designs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+// Batch sync (see src/sync.js): payload { known, changes } ->
+// { designs, tombs, rejected }.
+export const syncDesigns = (payload) =>
+  api('/designs/sync', { method: 'POST', body: payload });

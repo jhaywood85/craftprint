@@ -21,12 +21,13 @@ const env = {
 const BASE = 'https://class.example';
 const APP = 'https://kid.example/app/';
 
-async function call(method, path, { body, token } = {}) {
+async function call(method, path, { body, token, key } = {}) {
   const res = await handleRequest(new Request(`${BASE}${path}`, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(key ? { 'X-Teacher-Key': key } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
     redirect: 'manual',
@@ -160,6 +161,194 @@ console.log('\nwrong-audience id_token:');
   const back = new URL(cb.headers.get('Location'));
   check('rejected: bounced back with login_error', back.searchParams.get('login_error') === '1'
     && !back.searchParams.get('login'));
+}
+
+console.log('\noffline-first sync (/api/designs/sync):');
+{
+  // Fresh account for clean numbers: sign in as a second teacher.
+  const start = await call('GET', `/api/auth/google/start?return=${encodeURIComponent(APP)}`);
+  const state = new URL(start.headers.get('Location')).searchParams.get('state');
+  googleClaims = {
+    aud: 'test-client-id', iss: 'https://accounts.google.com',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    sub: 'g-sync-1', email: 'sync@school.org', name: 'Sync Teacher',
+  };
+  const cb = await call('GET', `/api/auth/google/callback?code=c&state=${encodeURIComponent(state)}`);
+  const loginCode = new URL(cb.headers.get('Location')).searchParams.get('login');
+  const tokenA = (await call('POST', '/api/auth/session', { body: { code: loginCode } })).data.token;
+
+  // Count KV writes per request to prove sync batches into one.
+  let writes = 0;
+  const realPut = env.ROOMS.put.bind(env.ROOMS);
+  env.ROOMS.put = (k, v, o) => { writes++; return realPut(k, v, o); };
+  const blocks = [[0, 0, 0, 1]];
+  const t0 = Date.now() - 5000;
+
+  // Device A pushes three designs + gets nothing back.
+  writes = 0;
+  const push = await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: {
+      known: { a1: t0, a2: t0 + 1, a3: t0 + 2 },
+      changes: [
+        { id: 'a1', updated: t0, name: 'One', blocks, thumb: 'data:image/jpeg;base64,AAA' },
+        { id: 'a2', updated: t0 + 1, name: 'Two', blocks },
+        { id: 'a3', updated: t0 + 2, name: 'Three', blocks },
+      ],
+    },
+  });
+  check('push accepts a batch', push.status === 200 && push.data.rejected.length === 0,
+    JSON.stringify(push.data));
+  check('device with everything gets nothing back', push.data.designs.length === 0);
+  check('a 3-design sync costs exactly 1 KV write', writes === 1, `writes=${writes}`);
+
+  // A brand-new device (empty known) pulls all three, costing 0 writes.
+  writes = 0;
+  const fresh = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('new device pulls everything', fresh.data.designs.length === 3);
+  check('thumbs round-trip', fresh.data.designs.find((d) => d.id === 'a1')?.thumb === 'data:image/jpeg;base64,AAA');
+  check('a pull-only sync costs 0 KV writes', writes === 0, `writes=${writes}`);
+
+  // Last-writer-wins: an OLDER update for a1 must be ignored.
+  await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: { known: {}, changes: [{ id: 'a1', updated: t0 - 999, name: 'Stale', blocks }] },
+  });
+  const afterStale = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('older update loses (LWW)', afterStale.data.designs.find((d) => d.id === 'a1')?.name === 'One');
+
+  // Device A deletes a2 (tombstone); device B, which still has a2, hears it.
+  await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: { known: { a1: t0, a3: t0 + 2 }, changes: [{ id: 'a2', updated: Date.now(), deleted: true }] },
+  });
+  const deviceB = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: { a1: t0, a2: t0 + 1, a3: t0 + 2 }, changes: [] },
+  });
+  check('tombstone reaches the other device', 'a2' in deviceB.data.tombs, JSON.stringify(deviceB.data.tombs));
+  check('deleted design no longer listed', !deviceB.data.designs.some((d) => d.id === 'a2'));
+
+  // A device that never had a2 is not bothered with its tombstone.
+  const deviceC = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: { a1: t0 }, changes: [] },
+  });
+  check('unknown ids get no tombstones', !('a2' in deviceC.data.tombs));
+
+  // Recreating a deleted id with a NEWER save resurrects it.
+  await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: { known: {}, changes: [{ id: 'a2', updated: Date.now() + 1, name: 'Two again', blocks }] },
+  });
+  const revived = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('newer save resurrects a deleted id', revived.data.designs.some((d) => d.id === 'a2'));
+
+  // Junk in the batch is rejected without poisoning the rest.
+  const junk = await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: {
+      known: {},
+      changes: [
+        { id: 'BAD ID!', updated: Date.now(), name: 'x', blocks },
+        { id: 'badblocks', updated: Date.now(), name: 'x', blocks: [['a']] },
+        { id: 'badthumb', updated: Date.now(), name: 'x', blocks, thumb: 'javascript:alert(1)' },
+        { id: 'good', updated: Date.now(), name: 'Good', blocks },
+      ],
+    },
+  });
+  check('invalid changes rejected, valid applied',
+    junk.data.rejected.length === 3, JSON.stringify(junk.data.rejected));
+  const afterJunk = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('good design landed', afterJunk.data.designs.some((d) => d.id === 'good'));
+  check('bad ones did not', !afterJunk.data.designs.some((d) => ['badblocks', 'badthumb'].includes(d.id)));
+
+  check('sync requires auth', (await call('POST', '/api/designs/sync', {
+    body: { known: {}, changes: [] },
+  })).status === 401);
+
+  env.ROOMS.put = realPut;
+}
+
+console.log('\naccount-owned classrooms:');
+{
+  // Two teachers.
+  async function signInAs(sub, email) {
+    const start = await call('GET', `/api/auth/google/start?return=${encodeURIComponent(APP)}`);
+    const state = new URL(start.headers.get('Location')).searchParams.get('state');
+    googleClaims = {
+      aud: 'test-client-id', iss: 'https://accounts.google.com',
+      exp: Math.floor(Date.now() / 1000) + 3600, sub, email, name: email,
+    };
+    const cb = await call('GET', `/api/auth/google/callback?code=c&state=${encodeURIComponent(state)}`);
+    const loginCode = new URL(cb.headers.get('Location')).searchParams.get('login');
+    return (await call('POST', '/api/auth/session', { body: { code: loginCode } })).data.token;
+  }
+  const tokenA = await signInAs('g-teach-a', 'a@school.org');
+  const tokenB = await signInAs('g-teach-b', 'b@school.org');
+
+  // A creates two classes while signed in — no key needed ever again.
+  const c1 = await call('POST', '/api/rooms', { token: tokenA, body: { teacher: 'Grade 3' } });
+  const c2 = await call('POST', '/api/rooms', { token: tokenA, body: { teacher: 'Grade 5' } });
+  check('signed-in create marks the room owned', c1.data.owned === true && c2.data.owned === true);
+
+  const mine = await call('GET', '/api/my/rooms', { token: tokenA });
+  check('my/rooms lists both classes, newest first',
+    mine.data.rooms.length === 2 && mine.data.rooms[0].code === c2.data.code,
+    JSON.stringify(mine.data));
+
+  // Owner reads hand-ins with the sign-in alone.
+  await call('POST', `/api/rooms/${c1.data.code}/handin`, {
+    body: { student: 'Sam', name: 'Boat', blocks: [[0, 0, 0, 1]] },
+  });
+  const ownerList = await call('GET', `/api/rooms/${c1.data.code}/designs`, { token: tokenA });
+  check('owner lists hand-ins without a key', ownerList.status === 200 &&
+    ownerList.data.designs.length === 1);
+
+  // Teacher B can neither read nor destroy A's class.
+  check("another account can't read the hand-ins",
+    (await call('GET', `/api/rooms/${c1.data.code}/designs`, { token: tokenB })).status === 403);
+  check("another account can't close the class",
+    (await call('DELETE', `/api/rooms/${c1.data.code}`, { token: tokenB })).status === 403);
+  check('anonymous close is refused',
+    (await call('DELETE', `/api/rooms/${c1.data.code}`)).status === 403);
+
+  // The classic key still works alongside ownership.
+  const byKey = await call('GET', `/api/rooms/${c1.data.code}/designs`, { key: c1.data.teacherKey });
+  check('legacy key path still works on owned rooms', byKey.status === 200);
+
+  // Claim: a key-only room can be attached to an account.
+  const legacy = await call('POST', '/api/rooms', { body: { teacher: 'Old class' } });
+  check('anonymous create is not owned', legacy.data.owned === false);
+  check('claim needs the right key', (await call('POST', `/api/rooms/${legacy.data.code}/claim`, {
+    token: tokenA, key: 'wrong'.padEnd(32, '0'),
+  })).status === 403);
+  const claimed = await call('POST', `/api/rooms/${legacy.data.code}/claim`, {
+    token: tokenA, key: legacy.data.teacherKey,
+  });
+  check('claim with the key succeeds', claimed.status === 200);
+  const mine2 = await call('GET', '/api/my/rooms', { token: tokenA });
+  check('claimed class joins my/rooms', mine2.data.rooms.some((r) => r.code === legacy.data.code));
+  check("claimed class can't be claimed by someone else",
+    (await call('POST', `/api/rooms/${legacy.data.code}/claim`, {
+      token: tokenB, key: legacy.data.teacherKey,
+    })).status === 403);
+  const ownedNow = await call('GET', `/api/rooms/${legacy.data.code}/designs`, { token: tokenA });
+  check('claimed class works with sign-in alone', ownedNow.status === 200);
+
+  // Close a class: room gone, hand-ins gone, class list updated.
+  const del = await call('DELETE', `/api/rooms/${c1.data.code}`, { token: tokenA });
+  check('owner closes the class', del.status === 200);
+  check('closed room is gone', (await call('GET', `/api/rooms/${c1.data.code}`)).status === 404);
+  const mine3 = await call('GET', '/api/my/rooms', { token: tokenA });
+  check('closed class left my/rooms', !mine3.data.rooms.some((r) => r.code === c1.data.code));
+  check('other classes untouched', mine3.data.rooms.some((r) => r.code === c2.data.code));
 }
 
 globalThis.fetch = realFetch;

@@ -12,7 +12,7 @@ needed after setup, nothing is uploaded anywhere.
 
 ## Install on an iPad / tablet
 
-**Live at https://jhaywood85.github.io/craftprint/** — open that in **Safari**
+**Live at https://craftprint-class.craftprint.workers.dev/** — open that in **Safari**
 on the iPad and tap **Share → Add to Home Screen**.
 
 CraftPrint is an installable web app (PWA): once added it It then has its own icon, launches

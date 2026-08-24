@@ -1,11 +1,20 @@
-# Cloudflare Worker config for the CraftPrint Classroom server.
-# See README.md in this folder for the full deploy guide.
+# Cloudflare Worker config for CraftPrint: ONE Worker serves both the app
+# (static assets from ../dist, built by scripts/build-app.sh) and the
+# Classroom/accounts API (worker.js handles /api/*).
+#
+# Deploys happen automatically from GitHub Actions on every push to main
+# (.github/workflows/deploy.yml). To deploy by hand instead:
+#   ./scripts/build-app.sh && cd server && npx wrangler deploy
 name = "craftprint-class"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
+# The app's static files. Requests that match a file here are served
+# directly; everything else (i.e. /api/*) falls through to worker.js.
+[assets]
+directory = "../dist"
+
 # Created by:  npx wrangler kv namespace create ROOMS
-# Paste the id it prints below.
 [[kv_namespaces]]
 binding = "ROOMS"
-id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+id = "0973529cb60547d6bc2de856e7155f7b"
