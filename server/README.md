@@ -15,30 +15,46 @@ free tier handles far more than a classroom will ever use.
   design and downloads them all for 3D printing.
 - Rooms clean themselves up automatically after 60 days.
 
-## Deploy it (once)
+## How it deploys
+
+ONE Cloudflare Worker serves everything: the app itself (static files built
+into `dist/` by `scripts/build-app.sh`) and the `/api/*` Classroom/accounts
+endpoints (`worker.js`). So the app and its API share one URL, and GitHub
+Pages isn't needed — the repository can stay private.
+
+**Automatic (how this repo works):** every push to `main` runs the test
+suite and deploys via GitHub Actions (`.github/workflows/deploy.yml`).
+One-time setup — add two repository secrets under GitHub → Settings →
+Secrets and variables → Actions:
+
+- `CLOUDFLARE_API_TOKEN` — create at dash.cloudflare.com → My Profile →
+  API Tokens → **Create Token** → use the **Edit Cloudflare Workers**
+  template (scope it to your account).
+- `CLOUDFLARE_ACCOUNT_ID` — shown in the right sidebar of the Workers
+  overview page (also in any `wrangler` output).
+
+**By hand (first-ever deploy, or without CI):**
 
 1. Make a free account at https://dash.cloudflare.com/sign-up (no card needed).
-2. On any computer with Node.js, in this `server/` folder:
+2. On any computer with Node.js, in the repo root:
 
    ```bash
+   cd server
    npx wrangler login                          # opens a browser to authorize
    npx wrangler kv namespace create ROOMS      # prints an id
    ```
 
-3. Paste the printed `id` into `wrangler.toml` where it says
-   `PASTE_YOUR_KV_NAMESPACE_ID_HERE`.
-4. Deploy:
+3. Paste the printed `id` into `wrangler.toml` (the `kv_namespaces` entry).
+4. Build the app and deploy:
 
    ```bash
-   npx wrangler deploy
+   cd .. && ./scripts/build-app.sh
+   cd server && npx wrangler deploy
    ```
 
-   It prints your server address, something like
-   `https://craftprint-class.yourname.workers.dev`.
-
-5. In CraftPrint, open **🏫 Class → 🍎 I'm a teacher → ⚙️ Server**, paste
-   that address, and press **Save & check** — it verifies the server
-   instantly. Done.
+   It prints your address, something like
+   `https://craftprint-class.yourname.workers.dev` — that's the whole app,
+   with the Classroom API under `/api/`.
 
 Students never touch any of this: the teacher's Class screen shows a QR
 code / join link that carries the room code *and* server address, so
@@ -56,8 +72,8 @@ no card on file:
 
 | Piece | Free host | What the free tier gives you |
 | --- | --- | --- |
-| The app (static files) | **GitHub Pages** (or Cloudflare Pages) | ~100 GB/month bandwidth — the app is a couple of MB and then cached offline on each tablet, so this is effectively unlimited for a school |
-| Classroom server | **Cloudflare Workers + KV** | ~100,000 requests/day, and **~1,000 KV writes/day** |
+| The app (static files) | **Cloudflare Workers static assets** (same Worker) | Asset requests are free and unlimited on the Workers free plan, and the app caches offline on each tablet after the first load |
+| Classroom server | **Cloudflare Workers + KV** (same Worker) | ~100,000 requests/day, and **~1,000 KV writes/day** |
 
 The KV write limit is the only meaningful ceiling, and it's the one to size
 against: **each hand-in costs one write.** So roughly:

@@ -39,7 +39,7 @@ on the iPad, use Option B.
 
 The game is deployed and running here:
 
-### **https://jhaywood85.github.io/craftprint/**
+### **https://craftprint-class.craftprint.workers.dev/**
 
 To install it on the iPad:
 
