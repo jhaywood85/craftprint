@@ -162,6 +162,119 @@ console.log('\nwrong-audience id_token:');
     && !back.searchParams.get('login'));
 }
 
+console.log('\noffline-first sync (/api/designs/sync):');
+{
+  // Fresh account for clean numbers: sign in as a second teacher.
+  const start = await call('GET', `/api/auth/google/start?return=${encodeURIComponent(APP)}`);
+  const state = new URL(start.headers.get('Location')).searchParams.get('state');
+  googleClaims = {
+    aud: 'test-client-id', iss: 'https://accounts.google.com',
+    exp: Math.floor(Date.now() / 1000) + 3600,
+    sub: 'g-sync-1', email: 'sync@school.org', name: 'Sync Teacher',
+  };
+  const cb = await call('GET', `/api/auth/google/callback?code=c&state=${encodeURIComponent(state)}`);
+  const loginCode = new URL(cb.headers.get('Location')).searchParams.get('login');
+  const tokenA = (await call('POST', '/api/auth/session', { body: { code: loginCode } })).data.token;
+
+  // Count KV writes per request to prove sync batches into one.
+  let writes = 0;
+  const realPut = env.ROOMS.put.bind(env.ROOMS);
+  env.ROOMS.put = (k, v, o) => { writes++; return realPut(k, v, o); };
+  const blocks = [[0, 0, 0, 1]];
+  const t0 = Date.now() - 5000;
+
+  // Device A pushes three designs + gets nothing back.
+  writes = 0;
+  const push = await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: {
+      known: { a1: t0, a2: t0 + 1, a3: t0 + 2 },
+      changes: [
+        { id: 'a1', updated: t0, name: 'One', blocks, thumb: 'data:image/jpeg;base64,AAA' },
+        { id: 'a2', updated: t0 + 1, name: 'Two', blocks },
+        { id: 'a3', updated: t0 + 2, name: 'Three', blocks },
+      ],
+    },
+  });
+  check('push accepts a batch', push.status === 200 && push.data.rejected.length === 0,
+    JSON.stringify(push.data));
+  check('device with everything gets nothing back', push.data.designs.length === 0);
+  check('a 3-design sync costs exactly 1 KV write', writes === 1, `writes=${writes}`);
+
+  // A brand-new device (empty known) pulls all three, costing 0 writes.
+  writes = 0;
+  const fresh = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('new device pulls everything', fresh.data.designs.length === 3);
+  check('thumbs round-trip', fresh.data.designs.find((d) => d.id === 'a1')?.thumb === 'data:image/jpeg;base64,AAA');
+  check('a pull-only sync costs 0 KV writes', writes === 0, `writes=${writes}`);
+
+  // Last-writer-wins: an OLDER update for a1 must be ignored.
+  await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: { known: {}, changes: [{ id: 'a1', updated: t0 - 999, name: 'Stale', blocks }] },
+  });
+  const afterStale = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('older update loses (LWW)', afterStale.data.designs.find((d) => d.id === 'a1')?.name === 'One');
+
+  // Device A deletes a2 (tombstone); device B, which still has a2, hears it.
+  await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: { known: { a1: t0, a3: t0 + 2 }, changes: [{ id: 'a2', updated: Date.now(), deleted: true }] },
+  });
+  const deviceB = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: { a1: t0, a2: t0 + 1, a3: t0 + 2 }, changes: [] },
+  });
+  check('tombstone reaches the other device', 'a2' in deviceB.data.tombs, JSON.stringify(deviceB.data.tombs));
+  check('deleted design no longer listed', !deviceB.data.designs.some((d) => d.id === 'a2'));
+
+  // A device that never had a2 is not bothered with its tombstone.
+  const deviceC = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: { a1: t0 }, changes: [] },
+  });
+  check('unknown ids get no tombstones', !('a2' in deviceC.data.tombs));
+
+  // Recreating a deleted id with a NEWER save resurrects it.
+  await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: { known: {}, changes: [{ id: 'a2', updated: Date.now() + 1, name: 'Two again', blocks }] },
+  });
+  const revived = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('newer save resurrects a deleted id', revived.data.designs.some((d) => d.id === 'a2'));
+
+  // Junk in the batch is rejected without poisoning the rest.
+  const junk = await call('POST', '/api/designs/sync', {
+    token: tokenA,
+    body: {
+      known: {},
+      changes: [
+        { id: 'BAD ID!', updated: Date.now(), name: 'x', blocks },
+        { id: 'badblocks', updated: Date.now(), name: 'x', blocks: [['a']] },
+        { id: 'badthumb', updated: Date.now(), name: 'x', blocks, thumb: 'javascript:alert(1)' },
+        { id: 'good', updated: Date.now(), name: 'Good', blocks },
+      ],
+    },
+  });
+  check('invalid changes rejected, valid applied',
+    junk.data.rejected.length === 3, JSON.stringify(junk.data.rejected));
+  const afterJunk = await call('POST', '/api/designs/sync', {
+    token: tokenA, body: { known: {}, changes: [] },
+  });
+  check('good design landed', afterJunk.data.designs.some((d) => d.id === 'good'));
+  check('bad ones did not', !afterJunk.data.designs.some((d) => ['badblocks', 'badthumb'].includes(d.id)));
+
+  check('sync requires auth', (await call('POST', '/api/designs/sync', {
+    body: { known: {}, changes: [] },
+  })).status === 401);
+
+  env.ROOMS.put = realPut;
+}
+
 globalThis.fetch = realFetch;
 console.log(failures === 0 ? '\nAll account tests passed.' : `\n${failures} test(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -209,14 +209,11 @@
     <p class="fine">Load one, spin it around, then pull it apart to see how it was made.</p>
     <div id="starterRow" class="starter-row"></div>
     <p class="section-label">📸 Your saves</p>
+    <!-- Account + sync status: My Stuff is ONE list. Signed in (Google), it
+         mirrors to the cloud automatically — offline saves queue and drain
+         when the connection returns. Signed out, it's local-only. -->
+    <div id="accountArea" class="cloud-section hidden"></div>
     <div id="galleryGrid" class="gallery-grid"></div>
-    <!-- Cloud designs (teacher accounts): only rendered when the classroom
-         server is configured AND supports Google sign-in. Saves live in the
-         teacher's account, so they survive cleared browsers and new devices. -->
-    <div id="cloudSection" class="cloud-section hidden">
-      <p class="section-label">☁️ Cloud</p>
-      <div id="cloudBody"></div>
-    </div>
   </div>
 
   <div id="classModal" class="modal wide hidden">
@@ -359,6 +356,7 @@
     <ul class="bullets">
       <li>🦋 <b>Mirror</b> (M): build both sides at once — wedges flip to mirror too, great for roofs and ships!</li>
       <li>↩️ <b>Ctrl+Z</b> undo, <b>Ctrl+Shift+Z</b> redo • 📦 <b>My Stuff</b> saves your builds</li>
+      <li>☁️ A grown-up can <b>Sign in with Google</b> in My Stuff — then every save syncs to the cloud automatically and follows you to any device. Works offline too: 📴 saves wait on the device and fly up as soon as you're back online. Deleting a synced design removes it everywhere.</li>
       <li>🧩 Blocks that only touch at a corner, an edge, or on a slope <b>aren't really stuck together</b> — they glow red and a “🧩 loose” chip appears (tap it to flash them). Give them a flat side to share, or press <b>🩹 Glue it</b> in the Print screen to fix them automatically!</li>
       <li>💾 In <b>My Stuff</b>, <b>⬇️ Design file</b> downloads your build as a file you can keep, share with friends, or move to another device — <b>⬆️ Open design file</b> loads it back in, ready to edit (unlike the printed STL, a design file keeps all the blocks)</li>
       <li>🏫 <b>Class</b> (top bar): students scan the teacher's QR code with the tablet camera (or type the room code) plus their first name, build, then <b>🖐 Hand in</b> — the teacher collects every design on one screen and downloads them all, ready to 3D print. No accounts or passwords, just first names.</li>

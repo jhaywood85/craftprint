@@ -28,8 +28,16 @@
 //   POST   /api/auth/session   {code}         -> {token, email, name}
 //   GET    /api/me             (Bearer token) -> {email, name, designs}
 //   GET    /api/designs        (Bearer token) -> {designs: [...]}
+//   POST   /api/designs/sync   (Bearer token) {known, changes} -> see below
 //   PUT    /api/designs/:id    (Bearer token) {name, blocks} -> {ok}
 //   DELETE /api/designs/:id    (Bearer token) -> {ok}
+//
+// /api/designs/sync is the offline-first sync used by the app: the device
+// sends everything that changed locally (upserts and deletions) plus a map of
+// what it already has, and gets back everything it's missing — all merged
+// last-writer-wins by timestamp, with deletions carried as tombstones so a
+// design deleted on one device disappears from the others. Whatever the batch
+// size, a sync costs at most ONE KV write.
 
 const ROOM_TTL_S = 60 * 60 * 24 * 60; // 60 days
 const MAX_BODY = 300 * 1024;          // a design is a few KB; 300 KB is generous
@@ -52,7 +60,10 @@ const CORS = {
 
 const SESSION_TTL_S = 60 * 60 * 24 * 90; // signed-in for 90 days
 const LOGIN_CODE_TTL_S = 300;            // one-time code: callback -> session
-const MAX_CLOUD_DESIGNS = 60;            // per account (mirrors room limit)
+const MAX_CLOUD_DESIGNS = 200;           // per account (a family's worth)
+const MAX_THUMB = 64 * 1024;             // data-URL thumbnail per design
+const SYNC_MAX_BODY = 5 * 1024 * 1024;   // a whole device's first sync
+const TOMB_TTL_MS = 90 * 24 * 60 * 60 * 1000; // deletion markers linger 90 days
 
 const te = new TextEncoder();
 const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -380,6 +391,7 @@ async function handleAccounts(request, env, url, path) {
   const acct = JSON.parse((await env.ROOMS.get(acctKey)) || 'null');
   if (!acct) return err(401, 'sign in first');
   const designs = acct.designs || {};
+  const tombs = acct.tombs || {}; // id -> deletion timestamp
 
   if (path === '/api/me' && request.method === 'GET') {
     return json({ email: acct.email, name: acct.name, designs: Object.keys(designs).length });
@@ -387,16 +399,89 @@ async function handleAccounts(request, env, url, path) {
 
   if (path === '/api/designs' && request.method === 'GET') {
     const list = Object.entries(designs)
-      .map(([id, d]) => ({ id, name: d.name, updated: d.updated, blocks: d.blocks }))
+      .map(([id, d]) => ({ id, name: d.name, updated: d.updated, thumb: d.thumb, blocks: d.blocks }))
       .sort((a, b) => b.updated - a.updated);
     return json({ designs: list });
+  }
+
+  const validId = (id) => /^[a-z0-9-]{1,40}$/.test(id);
+  const validStamp = (t) => Number.isFinite(t) && t > 0 && t < Date.now() + 24 * 60 * 60 * 1000;
+  const validThumb = (t) => t === undefined ||
+    (typeof t === 'string' && t.length <= MAX_THUMB && t.startsWith('data:image/'));
+
+  // POST /api/designs/sync — the offline-first batch sync (see header).
+  //   body:  { known: {id: updatedTs}, changes: [{id, updated, name, blocks,
+  //            thumb?} | {id, updated, deleted: true}] }
+  //   reply: { designs: [server records the device is missing or has stale],
+  //            tombs: {id: ts} for ids the device still has but were deleted,
+  //            rejected: [id] upserts refused (account full / invalid) }
+  if (path === '/api/designs/sync' && request.method === 'POST') {
+    const text = await request.text();
+    if (text.length > SYNC_MAX_BODY) return err(400, 'sync too big');
+    let body = null;
+    try { body = JSON.parse(text); } catch { /* 400 below */ }
+    const known = (body?.known && typeof body.known === 'object') ? body.known : null;
+    const changes = Array.isArray(body?.changes) ? body.changes : null;
+    if (!known || !changes || changes.length > 500) return err(400, 'bad sync request');
+
+    // Merge the device's changes, last-writer-wins per design id.
+    let dirty = false;
+    const rejected = [];
+    for (const ch of changes) {
+      const id = String(ch?.id || '');
+      if (!validId(id) || !validStamp(ch?.updated)) { if (id) rejected.push(id); continue; }
+      const current = designs[id]?.updated ?? tombs[id] ?? 0;
+      if (ch.updated <= current) continue; // we already have newer news
+      if (ch.deleted) {
+        delete designs[id];
+        tombs[id] = ch.updated;
+        dirty = true;
+      } else {
+        if (!validBlocks(ch.blocks) || !validThumb(ch.thumb) ||
+            JSON.stringify(ch.blocks).length > MAX_BODY) { rejected.push(id); continue; }
+        if (!(id in designs) && Object.keys(designs).length >= MAX_CLOUD_DESIGNS) {
+          rejected.push(id);
+          continue;
+        }
+        designs[id] = {
+          name: cleanName(ch.name, 24) || 'My Creation',
+          blocks: ch.blocks,
+          ...(ch.thumb ? { thumb: ch.thumb } : {}),
+          updated: ch.updated,
+        };
+        delete tombs[id];
+        dirty = true;
+      }
+    }
+    // Old tombstones have long since propagated — stop paying to store them.
+    for (const [id, t] of Object.entries(tombs)) {
+      if (Date.now() - t > TOMB_TTL_MS) { delete tombs[id]; dirty = true; }
+    }
+    if (dirty) {
+      await env.ROOMS.put(acctKey, JSON.stringify({ ...acct, designs, tombs }));
+    }
+
+    // What is the device missing? Records newer than what it says it has,
+    // and tombstones for ids it still holds.
+    const out = [];
+    for (const [id, d] of Object.entries(designs)) {
+      if (d.updated > (Number(known[id]) || 0)) {
+        out.push({ id, name: d.name, updated: d.updated, thumb: d.thumb, blocks: d.blocks });
+      }
+    }
+    const outTombs = {};
+    for (const [id, t] of Object.entries(tombs)) {
+      if (id in known) outTombs[id] = t;
+    }
+    return json({ designs: out, tombs: outTombs, rejected });
   }
 
   const dm = path.match(/^\/api\/designs\/([a-z0-9-]{1,40})$/);
   if (dm) {
     const id = dm[1];
 
-    // PUT /api/designs/:id — save (same id overwrites: newest version wins).
+    // PUT /api/designs/:id — single-design save (kept for older app builds;
+    // new clients use /sync). Same id overwrites: newest version wins.
     if (request.method === 'PUT') {
       const text = await request.text();
       if (text.length > MAX_BODY) return err(400, 'design too big');
@@ -407,15 +492,17 @@ async function handleAccounts(request, env, url, path) {
         return err(409, 'cloud is full — delete an old design first');
       }
       designs[id] = { name: cleanName(body?.name, 24) || 'My Creation', blocks: body.blocks, updated: Date.now() };
-      await env.ROOMS.put(acctKey, JSON.stringify({ ...acct, designs }));
+      delete tombs[id];
+      await env.ROOMS.put(acctKey, JSON.stringify({ ...acct, designs, tombs }));
       return json({ ok: true, id });
     }
 
-    // DELETE /api/designs/:id
+    // DELETE /api/designs/:id — leaves a tombstone so other devices delete too.
     if (request.method === 'DELETE') {
       if (id in designs) {
         delete designs[id];
-        await env.ROOMS.put(acctKey, JSON.stringify({ ...acct, designs }));
+        tombs[id] = Date.now();
+        await env.ROOMS.put(acctKey, JSON.stringify({ ...acct, designs, tombs }));
       }
       return json({ ok: true });
     }

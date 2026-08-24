@@ -12,6 +12,7 @@ import { makeZip } from './zip.js';
 import * as storage from './storage.js';
 import * as classroom from './classroom.js';
 import * as account from './account.js';
+import * as sync from './sync.js';
 import { STARTERS } from './starters.js';
 import qrcode from '../vendor/qrcode.mjs';
 
@@ -314,6 +315,11 @@ export function setupUI(app, { firstRun }) {
   // ---------------------------------------------------------------- gallery
   const galleryGrid = $('galleryGrid');
 
+  // A neutral picture for designs that arrived from the cloud without a
+  // thumbnail (saved by an older app version).
+  const FALLBACK_THUMB = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3" fill="#cfeeff"/><text x="2" y="2" font-size="1.4" text-anchor="middle">🧱</text></svg>');
+
   function renderGallery() {
     const items = storage.getGallery();
     galleryGrid.innerHTML = '';
@@ -321,15 +327,24 @@ export function setupUI(app, { firstRun }) {
       galleryGrid.innerHTML = '<p class="empty">Nothing saved yet. Build something and press 📸 Save!</p>';
       return;
     }
+    const signedIn = account.signedIn();
     for (const item of items) {
       const card = document.createElement('div');
       card.className = 'gallery-card';
       const img = document.createElement('img');
-      img.src = item.thumb;
+      img.src = item.thumb || FALLBACK_THUMB;
       img.alt = item.name;
       const label = document.createElement('div');
       label.className = 'gallery-name';
       label.textContent = item.name;
+      // Sync badge (signed in only): in the cloud, or still waiting to go up.
+      if (signedIn) {
+        const dot = document.createElement('span');
+        dot.className = 'sync-dot';
+        dot.textContent = item.dirty ? '📴' : '☁️';
+        dot.title = item.dirty ? 'Saved on this device — goes to your cloud when online' : 'Safe in your cloud';
+        card.appendChild(dot);
+      }
       const row = document.createElement('div');
       row.className = 'gallery-actions';
       const load = document.createElement('button');
@@ -353,10 +368,13 @@ export function setupUI(app, { firstRun }) {
       del.textContent = '🗑️';
       del.title = 'Delete';
       del.addEventListener('click', () => {
-        confirmAction('🗑️ Delete?', `Really delete “${item.name}” forever?`, '🗑️ Delete', () => {
+        const where = signedIn ? ' everywhere — this device AND your cloud' : ' forever';
+        confirmAction('🗑️ Delete?', `Really delete “${item.name}”${where}?`, '🗑️ Delete', () => {
           storage.removeFromGallery(item.id);
+          sync.scheduleSync(600);
           openModal('galleryModal');
           renderGallery();
+          renderAccountArea();
         });
       });
       row.append(load, del);
@@ -404,148 +422,96 @@ export function setupUI(app, { firstRun }) {
   $('galleryBtn').addEventListener('click', () => {
     app.sounds.click();
     renderGallery();
-    renderCloud();
+    renderAccountArea();
+    sync.scheduleSync(400); // freshen the list while it's on screen
     openModal('galleryModal');
   });
 
-  // ------------------------------------------------------------ cloud saves
-  // Teacher accounts: "Sign in with Google" on the classroom server keeps a
-  // copy of designs in the cloud, so they survive cleared browsers and moves
-  // to a new device. Shown only when the server supports it.
+  // ------------------------------------------------- account + sync status
+  // My Stuff is ONE list. Signed in, it mirrors to the cloud automatically
+  // (offline saves queue and drain when the connection returns — src/sync.js);
+  // signed out it's local-only, with a gentle offer to sign in.
   let cloudLoginAvailable = null; // null = not yet probed
   function accErrText(e) {
     const m = String(e?.message || e);
-    if (m === 'no-server') return '🍎 Set up the class server first (server/README.md).';
     if (m === 'offline') return '📡 Could not reach the server — check the connection.';
     if (m === 'signed-out') return '🔑 You were signed out — sign in again.';
     return `😕 Cloud problem: ${m}`;
   }
 
-  async function renderCloud() {
-    const section = $('cloudSection');
-    const body = $('cloudBody');
-    if (!classroom.serverURL()) { section.classList.add('hidden'); return; }
+  function syncStatusText() {
+    if (sync.isSyncing()) return '🔄 Syncing…';
+    const pending = sync.pendingCount();
+    if (pending > 0) {
+      return navigator.onLine === false || sync.lastSyncError()
+        ? `📴 ${pending} waiting to sync`
+        : '🔄 Syncing…';
+    }
+    return '☁️ All saved to your cloud';
+  }
+
+  async function renderAccountArea() {
+    const area = $('accountArea');
+    area.innerHTML = '';
+    area.classList.add('hidden');
+    if (!classroom.serverURL()) return;
+
     if (account.signedIn()) {
-      section.classList.remove('hidden');
-      renderCloudSignedIn();
+      area.classList.remove('hidden');
+      const row = document.createElement('div');
+      row.className = 'cloud-row';
+      const who = document.createElement('span');
+      who.className = 'fine cloud-who';
+      who.textContent = `☁️ ${account.info().email}`;
+      const status = document.createElement('span');
+      status.className = 'fine';
+      status.id = 'syncStatus';
+      status.textContent = syncStatusText();
+      const outB = document.createElement('button');
+      outB.className = 'btn small';
+      outB.textContent = 'Sign out';
+      outB.addEventListener('click', () => {
+        app.sounds.click();
+        confirmAction('👋 Sign out?',
+          'Your saves stay on this device and in your cloud — they just stop syncing until you sign in again.',
+          '👋 Sign out',
+          () => { account.signOut(); openModal('galleryModal'); renderGallery(); renderAccountArea(); });
+      });
+      row.append(who, status, outB);
+      area.appendChild(row);
       return;
     }
-    // Probe the server once per app load to see if it offers sign-in.
+
+    // Signed out: offer sign-in when the server supports it.
     if (cloudLoginAvailable === null) {
       try { cloudLoginAvailable = (await classroom.health()).login; }
       catch { cloudLoginAvailable = false; }
     }
-    section.classList.toggle('hidden', !cloudLoginAvailable);
     if (!cloudLoginAvailable) return;
-    body.innerHTML = '';
-    const p = document.createElement('p');
-    p.className = 'fine';
-    p.textContent = 'Keep your designs safe in the cloud — they follow you to any device, even if this browser is cleared.';
+    area.classList.remove('hidden');
+    const row = document.createElement('div');
+    row.className = 'cloud-row';
+    const p = document.createElement('span');
+    p.className = 'fine cloud-who';
+    p.textContent = 'Keep these safe in the cloud and on all your devices:';
     const btn = document.createElement('button');
-    btn.className = 'btn';
+    btn.className = 'btn small';
     btn.textContent = '🔑 Sign in with Google';
     btn.addEventListener('click', () => {
       app.sounds.click();
       const url = account.signInURL();
       if (url) location.href = url; // full-page round trip through Google
     });
-    body.append(p, btn);
+    row.append(p, btn);
+    area.appendChild(row);
   }
 
-  function renderCloudSignedIn() {
-    const body = $('cloudBody');
-    const me = account.info();
-    body.innerHTML = '';
-    const row = document.createElement('div');
-    row.className = 'cloud-row';
-    const who = document.createElement('span');
-    who.className = 'fine cloud-who';
-    who.textContent = `☁️ ${me.email}`;
-    const saveB = document.createElement('button');
-    saveB.className = 'btn small';
-    saveB.textContent = '☁️ Save this creation';
-    saveB.addEventListener('click', async () => {
-      app.sounds.click();
-      if (app.world.count === 0) { toast('🙂 Build something first!'); return; }
-      try {
-        await account.saveDesign(app.name, app.world.toArray());
-        app.sounds.tada();
-        toast(`☁️ “${app.name}” is saved in your cloud!`);
-        renderCloudList();
-      } catch (e) { toast(accErrText(e)); if (!account.signedIn()) renderCloud(); }
-    });
-    const outB = document.createElement('button');
-    outB.className = 'btn small';
-    outB.textContent = 'Sign out';
-    outB.addEventListener('click', () => {
-      app.sounds.click();
-      account.signOut();
-      renderCloud();
-    });
-    row.append(who, saveB, outB);
-    const grid = document.createElement('div');
-    grid.className = 'gallery-grid';
-    grid.id = 'cloudGrid';
-    body.append(row, grid);
-    renderCloudList();
-  }
-
-  async function renderCloudList() {
-    const grid = $('cloudGrid');
-    if (!grid) return;
-    grid.innerHTML = '<p class="empty">Loading…</p>';
-    try {
-      const { designs } = await account.listDesigns();
-      grid.innerHTML = '';
-      if (designs.length === 0) {
-        grid.innerHTML = '<p class="empty">Nothing in the cloud yet — press ☁️ Save this creation!</p>';
-        return;
-      }
-      for (const d of designs) {
-        const card = document.createElement('div');
-        card.className = 'gallery-card cloud-card';
-        const label = document.createElement('div');
-        label.className = 'gallery-name';
-        label.textContent = d.name;
-        const meta = document.createElement('div');
-        meta.className = 'class-card-meta';
-        meta.textContent = `🧱 ${d.blocks.length} blocks`;
-        const rowB = document.createElement('div');
-        rowB.className = 'gallery-actions';
-        const open = document.createElement('button');
-        open.className = 'btn small';
-        open.textContent = '📂 Open';
-        open.addEventListener('click', () => {
-          const doLoad = () => {
-            app.loadCells(d.blocks, d.name);
-            nameInput.value = app.name;
-            closeModals();
-            toast(`📂 Opened “${d.name}” from your cloud!`);
-          };
-          if (app.world.count > 0) {
-            confirmAction('📂 Open this?', `Your current build will be replaced by “${d.name}”. Save it first if you want to keep it!`, '📂 Open', doLoad);
-          } else doLoad();
-        });
-        const del = document.createElement('button');
-        del.className = 'btn small danger';
-        del.textContent = '🗑️';
-        del.title = 'Delete from the cloud';
-        del.addEventListener('click', () => {
-          confirmAction('🗑️ Delete from cloud?', `Really delete “${d.name}” from your cloud forever?`, '🗑️ Delete', async () => {
-            try { await account.deleteDesign(d.id); renderCloudList(); openModal('galleryModal'); }
-            catch (e) { toast(accErrText(e)); }
-          });
-        });
-        rowB.append(open, del);
-        card.append(label, meta, rowB);
-        grid.appendChild(card);
-      }
-    } catch (e) {
-      grid.innerHTML = '<p class="empty">Could not load your cloud designs.</p>';
-      toast(accErrText(e));
-      if (!account.signedIn()) renderCloud();
-    }
-  }
+  // Keep badges and the status line live while syncs run in the background.
+  sync.onSync(() => {
+    const status = $('syncStatus');
+    if (status) status.textContent = syncStatusText();
+    if (!$('galleryModal').classList.contains('hidden')) renderGallery();
+  });
 
   // Design files: the raw block data as JSON, so creations can be backed up,
   // shared with friends, and edited again later — unlike STL, which is only
@@ -608,7 +574,13 @@ export function setupUI(app, { firstRun }) {
     });
     app.sounds.tada();
     renderGallery();
-    toast(`📸 Saved “${app.name}” to My Stuff!`);
+    renderAccountArea();
+    if (account.signedIn()) {
+      sync.scheduleSync(600);
+      toast(`📸 Saved “${app.name}” — syncing to your cloud!`);
+    } else {
+      toast(`📸 Saved “${app.name}” to My Stuff!`);
+    }
   });
 
   // -------------------------------------------------------------- classroom
@@ -1103,17 +1075,23 @@ export function setupUI(app, { firstRun }) {
     history.replaceState(null, '', location.pathname);
     if (bootLogin) {
       account.completeLogin(bootLogin)
-        .then((me) => {
+        .then(async (me) => {
           app.sounds.tada();
-          toast(`☁️ Signed in as ${me.email} — your designs can live in the cloud now!`, 4500);
+          toast(`☁️ Signed in as ${me.email} — your saves sync to the cloud now!`, 4500);
+          // First sync merges both ways: everything local goes up, everything
+          // from other devices comes down. Nothing is lost.
+          try { await sync.syncNow(); } catch { /* status line reports it */ }
           renderGallery();
-          renderCloud();
+          renderAccountArea();
           openModal('galleryModal');
         })
         .catch((e) => toast(accErrText(e)));
     } else {
       toast('😕 Google sign-in didn’t finish — try again.');
     }
+  } else if (account.signedIn()) {
+    // Normal boot while signed in: catch up with the cloud in the background.
+    sync.scheduleSync(1500);
   }
 
   const bootJoin = (bootParams.get('class') || '').trim().toUpperCase();
