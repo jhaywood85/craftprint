@@ -18,6 +18,16 @@
 //   GET    /api/rooms/:code/designs  (X-Teacher-Key)      -> {designs: [...]}
 //   DELETE /api/rooms/:code/designs/:student (X-Teacher-Key) -> {ok}
 //
+// Rooms created by a SIGNED-IN teacher (Bearer token, see accounts below) are
+// OWNED by that account: they appear on every device the teacher signs into
+// (GET /api/my/rooms), and every teacher action works with the sign-in alone —
+// no teacher key to save or lose. The classic key path stays for rooms made
+// without an account, and such a room can be attached to an account later:
+//   GET    /api/my/rooms       (Bearer)                  -> {rooms: [...]}
+//   POST   /api/rooms/:code/claim (Bearer + X-Teacher-Key) -> {ok}
+//   DELETE /api/rooms/:code    (Bearer owner, or X-Teacher-Key)
+//     closes a class for good: deletes the room and every hand-in.
+//
 // OPTIONAL teacher accounts ("Sign in with Google" — see README's Accounts
 // section). Enabled by setting three secrets: GOOGLE_CLIENT_ID,
 // GOOGLE_CLIENT_SECRET, SESSION_SECRET. No passwords are ever stored — Google
@@ -160,12 +170,17 @@ export async function handleRequest(request, env) {
     });
   }
 
-  if (path.startsWith('/api/auth/') || path === '/api/me' || path.startsWith('/api/designs')) {
+  if (path.startsWith('/api/auth/') || path === '/api/me' || path.startsWith('/api/designs')
+      || path === '/api/my/rooms') {
     if (!loginEnabled) return err(404, 'accounts not enabled on this server');
     return handleAccounts(request, env, url, path);
   }
 
-  const m = path.match(/^\/api\/rooms(?:\/([A-Za-z0-9]{4,8}))?(?:\/(handin|designs))?(?:\/([a-z0-9-]{1,24}))?$/);
+  // Who is calling, if anyone? Room routes accept a sign-in as teacher proof.
+  const bearer = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  const authedSub = (loginEnabled && bearer) ? await verifyToken(env.SESSION_SECRET, bearer) : null;
+
+  const m = path.match(/^\/api\/rooms(?:\/([A-Za-z0-9]{4,8}))?(?:\/(handin|designs|claim))?(?:\/([a-z0-9-]{1,24}))?$/);
   if (!m) return err(404, 'not found');
   const code = m[1]?.toUpperCase();
   const sub = m[2];
@@ -183,12 +198,17 @@ export async function handleRequest(request, env) {
     return raw ? JSON.parse(raw) : null;
   }
 
+  // Teacher proof: the classic per-room key, OR being signed in as the
+  // account that owns the room (no key to save or lose).
   const teacherAuthed = (room) => {
+    if (!room) return false;
+    if (room.owner && authedSub && room.owner === authedSub) return true;
     const key = request.headers.get('X-Teacher-Key') || url.searchParams.get('key') || '';
-    return room && key && key === room.key;
+    return !!key && key === room.key;
   };
 
-  // POST /api/rooms — create a room.
+  // POST /api/rooms — create a room. Signed-in teachers own theirs: it lands
+  // in their account's class list and follows them to any device.
   if (!code && request.method === 'POST') {
     const body = (await readBody()) || {};
     if (requiredPasscode && String(body.passcode ?? '') !== requiredPasscode) {
@@ -200,9 +220,13 @@ export async function handleRequest(request, env) {
       const newCode = randomFrom(CODE_ALPHABET, 5);
       if (await env.ROOMS.get(`room:${newCode}`)) continue;
       const now = Date.now();
-      const room = { teacher, key: randomFrom('abcdef0123456789', 32), created: now, touched: now };
+      const room = {
+        teacher, key: randomFrom('abcdef0123456789', 32), created: now, touched: now,
+        ...(authedSub ? { owner: authedSub } : {}),
+      };
       await env.ROOMS.put(`room:${newCode}`, JSON.stringify(room), { expirationTtl: ROOM_TTL_S });
-      return json({ code: newCode, teacherKey: room.key, teacher });
+      if (authedSub) await addRoomToAccount(env, authedSub, { code: newCode, teacher, created: now });
+      return json({ code: newCode, teacherKey: room.key, teacher, owned: !!authedSub });
     }
     return err(500, 'could not allocate a room code');
   }
@@ -213,6 +237,32 @@ export async function handleRequest(request, env) {
   // GET /api/rooms/:code — student join check.
   if (code && !sub && request.method === 'GET') {
     return json({ ok: true, teacher: room.teacher });
+  }
+
+  // POST /api/rooms/:code/claim — attach a classic (key-only) room to the
+  // signed-in teacher's account: prove the key once, never need it again.
+  if (sub === 'claim' && request.method === 'POST') {
+    if (!authedSub) return err(401, 'sign in first');
+    const key = request.headers.get('X-Teacher-Key') || '';
+    if (!key || key !== room.key) return err(403, 'teacher key required');
+    if (room.owner && room.owner !== authedSub) return err(403, 'this class belongs to another account');
+    if (room.owner !== authedSub) {
+      await env.ROOMS.put(`room:${code}`, JSON.stringify({ ...room, owner: authedSub }),
+        { expirationTtl: ROOM_TTL_S });
+    }
+    await addRoomToAccount(env, authedSub, { code, teacher: room.teacher, created: room.created ?? Date.now() });
+    return json({ ok: true, code, teacher: room.teacher });
+  }
+
+  // DELETE /api/rooms/:code — close a class for good: the room, every
+  // hand-in, and (for owned rooms) its entry in the teacher's class list.
+  if (code && !sub && request.method === 'DELETE') {
+    if (!teacherAuthed(room)) return err(403, 'teacher key required');
+    const list = await env.ROOMS.list({ prefix: `d:${code}:` });
+    for (const k of list.keys) await env.ROOMS.delete(k.name);
+    await env.ROOMS.delete(`room:${code}`);
+    if (room.owner) await removeRoomFromAccount(env, room.owner, code);
+    return json({ ok: true });
   }
 
   // POST /api/rooms/:code/handin — student submits a design (upsert by name).
@@ -267,6 +317,27 @@ export async function handleRequest(request, env) {
   }
 
   return err(404, 'not found');
+}
+
+// --- Account class lists ------------------------------------------------------
+
+// Rooms an account owns, kept on the account record so a teacher's classes
+// follow them to any signed-in device. Entries: { code, teacher, created }.
+async function addRoomToAccount(env, sub, entry) {
+  const key = `acct:${sub}`;
+  const acct = JSON.parse((await env.ROOMS.get(key)) || 'null') || { designs: {}, created: Date.now() };
+  const rooms = (acct.rooms || []).filter((r) => r.code !== entry.code);
+  rooms.unshift(entry);
+  await env.ROOMS.put(key, JSON.stringify({ ...acct, rooms }));
+}
+
+async function removeRoomFromAccount(env, sub, code) {
+  const key = `acct:${sub}`;
+  const acct = JSON.parse((await env.ROOMS.get(key)) || 'null');
+  if (!acct?.rooms?.some((r) => r.code === code)) return;
+  await env.ROOMS.put(key, JSON.stringify({
+    ...acct, rooms: acct.rooms.filter((r) => r.code !== code),
+  }));
 }
 
 // --- Teacher accounts: Google OAuth code flow + per-account designs ---------
@@ -395,6 +466,11 @@ async function handleAccounts(request, env, url, path) {
 
   if (path === '/api/me' && request.method === 'GET') {
     return json({ email: acct.email, name: acct.name, designs: Object.keys(designs).length });
+  }
+
+  // GET /api/my/rooms — the classes this account owns, on any device.
+  if (path === '/api/my/rooms' && request.method === 'GET') {
+    return json({ rooms: acct.rooms || [] });
   }
 
   if (path === '/api/designs' && request.method === 'GET') {

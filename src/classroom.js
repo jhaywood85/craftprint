@@ -18,6 +18,9 @@
 // losing them would otherwise mean losing the class (see keyFileFor()).
 
 import * as storage from './storage.js';
+// Circular with account.js (it imports serverURL from here) — safe because
+// both modules only touch each other inside functions, never at load time.
+import * as account from './account.js';
 
 // The deployed server every copy of this app uses out of the box — Classroom
 // (and teacher accounts, once its Google secrets are set) work with zero
@@ -59,12 +62,39 @@ export const joinAs = (code, name, teacher) => patch({ student: { code, name, te
 export const leaveClass = () => patch({ student: null });
 
 // --- teacher side ----------------------------------------------------------
+//
+// Two kinds of classes:
+//  - OWNED: created (or claimed) while signed in with Google. They live on
+//    the teacher's account and appear on every signed-in device; the sign-in
+//    is the proof of ownership, no key involved. Cached locally so the board
+//    (code + QR) still renders offline.
+//  - LEGACY: created without an account, proven by a per-room teacherKey
+//    stored in this browser (plus exportable key files).
 
-export const myClasses = () => getState().classes || [];
+export const myClasses = () => getState().classes || []; // legacy only
+
+export const ownedRooms = () => getState().owned || [];
+
+// Refresh the owned-class list from the account (call when signed in).
+export async function refreshOwnedRooms() {
+  if (!account.signedIn()) return ownedRooms();
+  const { rooms } = await api('/my/rooms', { bearer: true });
+  patch({ owned: rooms });
+  return rooms;
+}
+
+// Everything this device can run: owned classes first, then legacy ones that
+// haven't been claimed into the account yet.
+export function allClasses() {
+  const owned = ownedRooms().map((r) => ({ ...r, owned: true }));
+  const legacy = myClasses().filter((c) => !owned.some((r) => r.code === c.code));
+  return [...owned, ...legacy];
+}
 
 export function activeClass() {
-  const { classes = [], active } = getState();
-  return classes.find((c) => c.code === active) || classes[0] || null;
+  const all = allClasses();
+  const { active } = getState();
+  return all.find((c) => c.code === active) || all[0] || null;
 }
 
 export function addClass(cls) {
@@ -120,9 +150,10 @@ export async function health() {
   };
 }
 
-async function api(path, { method = 'GET', body, teacherKey } = {}) {
+async function api(path, { method = 'GET', body, teacherKey, bearer } = {}) {
   const base = serverURL();
   if (!base) throw new Error('no-server');
+  const token = bearer && account.signedIn() ? account.info().token : null;
   let res;
   try {
     res = await fetch(`${base}/api${path}`, {
@@ -130,6 +161,7 @@ async function api(path, { method = 'GET', body, teacherKey } = {}) {
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
         ...(teacherKey ? { 'X-Teacher-Key': teacherKey } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -141,8 +173,19 @@ async function api(path, { method = 'GET', body, teacherKey } = {}) {
   return data;
 }
 
+// Signed-in teachers own the rooms they create (bearer rides along when
+// available); without an account this still works the classic key way.
 export const createRoom = (teacher, passcode) =>
-  api('/rooms', { method: 'POST', body: { teacher, passcode } });
+  api('/rooms', { method: 'POST', body: { teacher, passcode }, bearer: true });
+
+// Attach a legacy (key-only) class to the signed-in account: prove the key
+// once, then the sign-in is all any device ever needs.
+export const claimRoom = (code, key) =>
+  api(`/rooms/${encodeURIComponent(code)}/claim`, { method: 'POST', teacherKey: key, bearer: true });
+
+// Close a class for good: deletes the room and every hand-in on the server.
+export const closeRoom = (code, key) =>
+  api(`/rooms/${encodeURIComponent(code)}`, { method: 'DELETE', teacherKey: key, bearer: true });
 
 export const checkRoom = (code) =>
   api(`/rooms/${encodeURIComponent(code)}`);
@@ -151,7 +194,7 @@ export const handIn = (code, payload) =>
   api(`/rooms/${encodeURIComponent(code)}/handin`, { method: 'POST', body: payload });
 
 export const listDesigns = (code, teacherKey) =>
-  api(`/rooms/${encodeURIComponent(code)}/designs`, { teacherKey });
+  api(`/rooms/${encodeURIComponent(code)}/designs`, { teacherKey, bearer: true });
 
 // Recovery: prove a (code, key) pair still opens a room, and recover the
 // class name from the room itself so a restored class looks right. Throws

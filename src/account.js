@@ -16,11 +16,13 @@ import { serverURL } from './classroom.js';
 export const info = () => storage.loadAccount() || null;
 export const signedIn = () => !!info()?.token;
 
-// Where to send the browser to start the Google sign-in dance.
-export function signInURL() {
+// Where to send the browser to start the Google sign-in dance. `back` tags
+// the return URL so the app can reopen the screen the user started from
+// (e.g. 'class' brings a teacher back to the Class screen, not My Stuff).
+export function signInURL(back) {
   const base = serverURL();
   if (!base) return null;
-  const here = `${location.origin}${location.pathname}`;
+  const here = `${location.origin}${location.pathname}${back ? `?back=${back}` : ''}`;
   return `${base}/api/auth/google/start?return=${encodeURIComponent(here)}`;
 }
 

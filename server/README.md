@@ -116,8 +116,16 @@ One-time setup (about 10 minutes):
    (`openssl rand -hex 32` makes a good SESSION_SECRET.)
 
 That's it — the app notices the server supports sign-in (via `/api/health`)
-and shows the **🔑 Sign in with Google** button in My Stuff automatically.
-Accounts get up to 60 cloud designs each; sessions last 90 days.
+and shows the **🔑 Sign in with Google** button automatically, both in
+My Stuff and in the teacher's Class setup. Accounts get up to 200 synced
+designs each; sessions last 90 days.
+
+With sign-in enabled, **classes belong to the teacher's account**: they
+appear on every device the teacher signs into, all teacher actions work with
+the sign-in alone, and closing a class deletes it (and its hand-ins) for
+good. The old teacher-key files still work for classes created without an
+account, and such a class can be attached to an account with one tap
+(“☁️ Move into my account”).
 
 ## Try it locally first (optional)
 
