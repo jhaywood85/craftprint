@@ -125,6 +125,9 @@ console.log('\naccount + designs:');
   });
   check('same id overwrites (newest wins)', put2.status === 200);
 
+  // The PUT above and this one can land in the same millisecond on a fast
+  // runner, making "newest" a coin flip — give the clock one tick.
+  await new Promise((r) => setTimeout(r, 5));
   await call('PUT', '/api/designs/castle', { token, body: { name: 'Castle', blocks } });
   const list = await call('GET', '/api/designs', { token });
   check('list has both designs', list.data.designs?.length === 2, JSON.stringify(list.data));
