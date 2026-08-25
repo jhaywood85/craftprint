@@ -1,11 +1,23 @@
 // Validates the Classroom server handler (server/worker.js) against the same
-// in-memory KV used by the local dev server: room creation, join checks,
-// hand-ins (including upsert), teacher auth, deletion, and limits.
+// in-memory KV used by the local dev server: room creation (sign-in
+// required), join checks, hand-ins (including upsert), owner-only teacher
+// auth, deletion, and limits.
 //
 // Run: node tests/classroom.test.mjs
 
+import { createHmac } from 'node:crypto';
 import { handleRequest } from '../server/worker.js';
 import { memoryKV } from '../server/dev.mjs';
+
+// Mint a session token the same way the server does (HMAC over v1.sub.exp),
+// so tests can act as signed-in teachers without the OAuth dance.
+const SECRET = 'test-session-secret';
+function tokenFor(sub) {
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const body = `v1.${sub}.${exp}`;
+  const sig = createHmac('sha256', SECRET).update(body).digest('hex');
+  return `${body}.${sig}`;
+}
 
 let failures = 0;
 function check(name, cond, detail = '') {
@@ -13,15 +25,15 @@ function check(name, cond, detail = '') {
   else { failures++; console.error(`  FAIL - ${name} ${detail}`); }
 }
 
-const env = { ROOMS: memoryKV() };
+const env = { ROOMS: memoryKV(), SESSION_SECRET: SECRET, GOOGLE_FAKE: 'test@school.example' };
 const BASE = 'https://class.example';
 
-async function call(method, path, { body, key } = {}) {
+async function call(method, path, { body, token } = {}) {
   const res = await handleRequest(new Request(`${BASE}${path}`, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(key ? { 'X-Teacher-Key': key } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   }), env);
@@ -34,11 +46,14 @@ check('health endpoint identifies the service',
   health.status === 200 && health.data.service === 'craftprint-class');
 
 console.log('\nroom lifecycle:');
-const created = await call('POST', '/api/rooms', { body: { teacher: 'Ms. Lee' } });
-check('create room returns code + key', created.status === 200 &&
-  /^[A-Z2-9]{5}$/.test(created.data.code) && created.data.teacherKey.length === 32,
-  JSON.stringify(created.data));
-const { code, teacherKey } = created.data;
+const teacherToken = tokenFor('g-ms-lee');
+const anonCreate = await call('POST', '/api/rooms', { body: { teacher: 'Ms. Lee' } });
+check('creating without signing in is refused', anonCreate.status === 401);
+const created = await call('POST', '/api/rooms', { token: teacherToken, body: { teacher: 'Ms. Lee' } });
+check('signed-in teacher creates a room', created.status === 200 &&
+  /^[A-Z2-9]{5}$/.test(created.data.code), JSON.stringify(created.data));
+check('no key material in the response', created.data.teacherKey === undefined);
+const { code } = created.data;
 
 const joined = await call('GET', `/api/rooms/${code}`);
 check('students can check the room', joined.status === 200 && joined.data.teacher === 'Ms. Lee');
@@ -71,20 +86,20 @@ const anon = await call('POST', `/api/rooms/${code}/handin`, {
 check('missing student name rejected', anon.status === 400);
 
 console.log('\nteacher access:');
-const listed = await call('GET', `/api/rooms/${code}/designs`, { key: teacherKey });
+const listed = await call('GET', `/api/rooms/${code}/designs`, { token: teacherToken });
 check('teacher lists designs', listed.status === 200 && listed.data.designs.length === 2);
 check('upsert kept one design per student and the newest name',
   listed.data.designs.find((d) => d.student === 'Sam')?.name === 'Rocket v2');
 check('blocks round-trip exactly',
   JSON.stringify(listed.data.designs.find((d) => d.student === 'Sam').blocks) === JSON.stringify(design.blocks));
 
-const noKey = await call('GET', `/api/rooms/${code}/designs`);
-check('listing without key is 403', noKey.status === 403);
-const wrongKey = await call('GET', `/api/rooms/${code}/designs`, { key: 'f'.repeat(32) });
-check('listing with wrong key is 403', wrongKey.status === 403);
+const anonList = await call('GET', `/api/rooms/${code}/designs`);
+check('listing without signing in is 403', anonList.status === 403);
+const otherTeacher = await call('GET', `/api/rooms/${code}/designs`, { token: tokenFor('g-somebody-else') });
+check("listing as a different teacher is 403", otherTeacher.status === 403);
 
-const del = await call('DELETE', `/api/rooms/${code}/designs/alex`, { key: teacherKey });
-const after = await call('GET', `/api/rooms/${code}/designs`, { key: teacherKey });
+const del = await call('DELETE', `/api/rooms/${code}/designs/alex`, { token: teacherToken });
+const after = await call('GET', `/api/rooms/${code}/designs`, { token: teacherToken });
 check('teacher can delete a hand-in', del.status === 200 && after.data.designs.length === 1);
 
 console.log('\nfree-tier write efficiency:');
@@ -108,10 +123,12 @@ console.log('\nfree-tier write efficiency:');
 
 console.log('\nteacher passcode (shared school servers):');
 {
-  const guarded = { ROOMS: env.ROOMS, CREATE_PASSCODE: 'lego-time' };
+  const guarded = { ...env, CREATE_PASSCODE: 'lego-time' };
   const callG = async (body) => {
     const res = await handleRequest(new Request(`${BASE}/api/rooms`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${teacherToken}` },
+      body: JSON.stringify(body),
     }), guarded);
     return { status: res.status, data: await res.json().catch(() => ({})) };
   };

@@ -21,13 +21,12 @@ const env = {
 const BASE = 'https://class.example';
 const APP = 'https://kid.example/app/';
 
-async function call(method, path, { body, token, key } = {}) {
+async function call(method, path, { body, token } = {}) {
   const res = await handleRequest(new Request(`${BASE}${path}`, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(key ? { 'X-Teacher-Key': key } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
     redirect: 'manual',
@@ -296,10 +295,13 @@ console.log('\naccount-owned classrooms:');
   const tokenA = await signInAs('g-teach-a', 'a@school.org');
   const tokenB = await signInAs('g-teach-b', 'b@school.org');
 
-  // A creates two classes while signed in — no key needed ever again.
+  // A creates two classes while signed in — sign-in is the only credential.
   const c1 = await call('POST', '/api/rooms', { token: tokenA, body: { teacher: 'Grade 3' } });
   const c2 = await call('POST', '/api/rooms', { token: tokenA, body: { teacher: 'Grade 5' } });
-  check('signed-in create marks the room owned', c1.data.owned === true && c2.data.owned === true);
+  check('signed-in create works, no key material returned',
+    c1.status === 200 && c2.status === 200 && c1.data.teacherKey === undefined);
+  check('anonymous create is refused',
+    (await call('POST', '/api/rooms', { body: { teacher: 'Nope' } })).status === 401);
 
   const mine = await call('GET', '/api/my/rooms', { token: tokenA });
   check('my/rooms lists both classes, newest first',
@@ -321,29 +323,6 @@ console.log('\naccount-owned classrooms:');
     (await call('DELETE', `/api/rooms/${c1.data.code}`, { token: tokenB })).status === 403);
   check('anonymous close is refused',
     (await call('DELETE', `/api/rooms/${c1.data.code}`)).status === 403);
-
-  // The classic key still works alongside ownership.
-  const byKey = await call('GET', `/api/rooms/${c1.data.code}/designs`, { key: c1.data.teacherKey });
-  check('legacy key path still works on owned rooms', byKey.status === 200);
-
-  // Claim: a key-only room can be attached to an account.
-  const legacy = await call('POST', '/api/rooms', { body: { teacher: 'Old class' } });
-  check('anonymous create is not owned', legacy.data.owned === false);
-  check('claim needs the right key', (await call('POST', `/api/rooms/${legacy.data.code}/claim`, {
-    token: tokenA, key: 'wrong'.padEnd(32, '0'),
-  })).status === 403);
-  const claimed = await call('POST', `/api/rooms/${legacy.data.code}/claim`, {
-    token: tokenA, key: legacy.data.teacherKey,
-  });
-  check('claim with the key succeeds', claimed.status === 200);
-  const mine2 = await call('GET', '/api/my/rooms', { token: tokenA });
-  check('claimed class joins my/rooms', mine2.data.rooms.some((r) => r.code === legacy.data.code));
-  check("claimed class can't be claimed by someone else",
-    (await call('POST', `/api/rooms/${legacy.data.code}/claim`, {
-      token: tokenB, key: legacy.data.teacherKey,
-    })).status === 403);
-  const ownedNow = await call('GET', `/api/rooms/${legacy.data.code}/designs`, { token: tokenA });
-  check('claimed class works with sign-in alone', ownedNow.status === 200);
 
   // Close a class: room gone, hand-ins gone, class list updated.
   const del = await call('DELETE', `/api/rooms/${c1.data.code}`, { token: tokenA });

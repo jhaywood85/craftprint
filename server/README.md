@@ -23,16 +23,14 @@ into `dist/` by `scripts/build-app.sh`) and the `/api/*` Classroom/accounts
 endpoints (`worker.js`). So the app and its API share one URL, and GitHub
 Pages isn't needed — the repository can stay private.
 
-**Automatic (how this repo works):** every push to `main` runs the test
-suite and deploys via GitHub Actions (`.github/workflows/deploy.yml`).
-One-time setup — add two repository secrets under GitHub → Settings →
-Secrets and variables → Actions:
+**Automatic (how this repo works):** the repo is connected to Cloudflare's
+Git integration (Workers Builds) — every push to `main` builds and deploys.
+The Worker's build settings:
 
-- `CLOUDFLARE_API_TOKEN` — create at dash.cloudflare.com → My Profile →
-  API Tokens → **Create Token** → use the **Edit Cloudflare Workers**
-  template (scope it to your account).
-- `CLOUDFLARE_ACCOUNT_ID` — shown in the right sidebar of the Workers
-  overview page (also in any `wrangler` output).
+- Build command: `npm test && ./scripts/build-app.sh`
+- Deploy command: `npx wrangler deploy -c server/wrangler.toml`
+
+GitHub Actions (`.github/workflows/test.yml`) is a tests-only gate on PRs.
 
 **By hand (first-ever deploy, or without CI):**
 
@@ -134,12 +132,11 @@ and shows the **🔑 Sign in with Google** button automatically, both in
 My Stuff and in the teacher's Class setup. Accounts get up to 200 synced
 designs each; sessions last 90 days.
 
-With sign-in enabled, **classes belong to the teacher's account**: they
-appear on every device the teacher signs into, all teacher actions work with
-the sign-in alone, and closing a class deletes it (and its hand-ins) for
-good. The old teacher-key files still work for classes created without an
-account, and such a class can be attached to an account with one tap
-(“☁️ Move into my account”).
+**Classes belong to the teacher's account**: creating one requires being
+signed in, the class list follows the teacher to every device, all teacher
+actions authenticate with the sign-in, and closing a class deletes it (and
+its hand-ins) for good. There are no teacher keys or recovery files —
+the account IS the credential.
 
 ## Try it locally first (optional)
 
@@ -160,8 +157,8 @@ SESSION_SECRET=dev GOOGLE_FAKE=you@example.com node server/dev.mjs
 
 - Stored data per student: first name, a design name, and the block data.
   Nothing else — no emails, no passwords, no tracking.
-- The teacher key never leaves the teacher's browser except on their own
-  requests; students cannot read each other's designs.
+- Only the class's owner (their signed-in account) can read hand-ins;
+  students cannot read each other's designs.
 - Teacher accounts (if enabled) store only the teacher's email, display name,
   and their own saved designs. Sign-in goes through Google — no passwords
   exist anywhere in CraftPrint. Students never sign in to anything.

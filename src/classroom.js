@@ -1,21 +1,15 @@
-// Classroom client: talks to the tiny room-code server (server/worker.js).
+// Classroom client for the hosted CraftPrint service (server/worker.js).
 //
-// A teacher creates a room and gets { code, teacherKey }; students join with
-// the code and their first name and hand in designs. State (which room this
-// device is in, and the server address) persists in localStorage. The server
-// address is configurable at runtime so schools can point the stock GitHub
-// Pages app at their own deployed Worker — see server/README.md.
+// Teachers sign in with Google and create classes owned by their account;
+// students join with the room code and their first name and hand in designs.
 //
-// Stored shape:
+// Stored shape (localStorage):
 //   {
-//     server:  'https://…',                     // this device's server
-//     student: { code, name, teacher } | null,  // the class this kid joined
-//     classes: [{ code, key, teacher, created }],  // classes this teacher runs
-//     active:  'ABCDE' | null,                  // which one they're viewing
+//     server:  '',                               // dev/test override only
+//     student: { code, name, teacher } | null,   // the class this kid joined
+//     owned:   [{ code, teacher, created }],     // cached account class list
+//     active:  'ABCDE' | null,                   // which one they're viewing
 //   }
-// A teacher can run many classes (a term's worth), and each class's key is
-// what proves ownership of its hand-ins — so keys are also exportable, since
-// losing them would otherwise mean losing the class (see keyFileFor()).
 
 import * as storage from './storage.js';
 // Circular with account.js (it imports serverURL from here) — safe because
@@ -28,24 +22,9 @@ import * as account from './account.js';
 // hidden override for development and automated tests (set via setState).
 export const DEFAULT_SERVER = '';
 
-// Read state, migrating the original single-class shape
-// ({ code, teacherKey } / { code, student }) so nobody loses a live class.
 export function getState() {
   const raw = storage.loadClassroom() || {};
-  if (Array.isArray(raw.classes) || raw.student !== undefined) {
-    return { classes: [], active: null, student: null, ...raw };
-  }
-  const migrated = { server: raw.server, classes: [], active: null, student: null };
-  if (raw.code && raw.teacherKey) {
-    migrated.classes = [{
-      code: raw.code, key: raw.teacherKey, teacher: raw.teacher || 'My class', created: null,
-    }];
-    migrated.active = raw.code;
-  } else if (raw.code && raw.student) {
-    migrated.student = { code: raw.code, name: raw.student, teacher: raw.teacher };
-  }
-  storage.saveClassroom(migrated);
-  return migrated;
+  return { owned: [], active: null, student: null, ...raw };
 }
 
 export function setState(next) {
@@ -63,15 +42,10 @@ export const leaveClass = () => patch({ student: null });
 
 // --- teacher side ----------------------------------------------------------
 //
-// Two kinds of classes:
-//  - OWNED: created (or claimed) while signed in with Google. They live on
-//    the teacher's account and appear on every signed-in device; the sign-in
-//    is the proof of ownership, no key involved. Cached locally so the board
-//    (code + QR) still renders offline.
-//  - LEGACY: created without an account, proven by a per-room teacherKey
-//    stored in this browser (plus exportable key files).
-
-export const myClasses = () => getState().classes || []; // legacy only
+// Classes belong to the teacher's Google account: created while signed in,
+// listed from the account on any device, and every teacher action proves
+// itself with the sign-in. The list is cached locally so the board (code +
+// QR) still renders offline.
 
 export const ownedRooms = () => getState().owned || [];
 
@@ -83,45 +57,16 @@ export async function refreshOwnedRooms() {
   return rooms;
 }
 
-// Everything this device can run: owned classes first, then legacy ones that
-// haven't been claimed into the account yet.
-export function allClasses() {
-  const owned = ownedRooms().map((r) => ({ ...r, owned: true }));
-  const legacy = myClasses().filter((c) => !owned.some((r) => r.code === c.code));
-  return [...owned, ...legacy];
-}
-
 export function activeClass() {
-  const all = allClasses();
+  const all = ownedRooms();
   const { active } = getState();
   return all.find((c) => c.code === active) || all[0] || null;
 }
 
-export function addClass(cls) {
-  const classes = myClasses().filter((c) => c.code !== cls.code);
-  patch({ classes: [{ ...cls }, ...classes], active: cls.code });
-  return cls;
-}
 
 export const setActiveClass = (code) => patch({ active: code });
 
-export function forgetClass(code) {
-  const classes = myClasses().filter((c) => c.code !== code);
-  patch({ classes, active: classes[0]?.code ?? null });
-  return classes;
-}
 
-// A class's key is its only proof of ownership, so make it saveable: this is
-// what "Save my teacher key" downloads and what recovery imports.
-export const keyFileFor = (cls) => JSON.stringify({
-  app: 'craftprint',
-  kind: 'teacher-key',
-  code: cls.code,
-  key: cls.key,
-  teacher: cls.teacher,
-  server: serverURL(),
-  saved: new Date().toISOString(),
-}, null, 2);
 
 // '' = same origin (production). A dev/test override returns its absolute URL.
 export function serverURL() {
@@ -151,7 +96,7 @@ export async function health() {
   };
 }
 
-async function api(path, { method = 'GET', body, teacherKey, bearer } = {}) {
+async function api(path, { method = 'GET', body, bearer } = {}) {
   const base = serverURL(); // '' = same origin
   const token = bearer && account.signedIn() ? account.info().token : null;
   let res;
@@ -160,7 +105,6 @@ async function api(path, { method = 'GET', body, teacherKey, bearer } = {}) {
       method,
       headers: {
         ...(body ? { 'Content-Type': 'application/json' } : {}),
-        ...(teacherKey ? { 'X-Teacher-Key': teacherKey } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -173,19 +117,14 @@ async function api(path, { method = 'GET', body, teacherKey, bearer } = {}) {
   return data;
 }
 
-// Signed-in teachers own the rooms they create (bearer rides along when
-// available); without an account this still works the classic key way.
+// Creating a class requires being signed in — the room is owned by the
+// account and follows the teacher to every device.
 export const createRoom = (teacher, passcode) =>
   api('/rooms', { method: 'POST', body: { teacher, passcode }, bearer: true });
 
-// Attach a legacy (key-only) class to the signed-in account: prove the key
-// once, then the sign-in is all any device ever needs.
-export const claimRoom = (code, key) =>
-  api(`/rooms/${encodeURIComponent(code)}/claim`, { method: 'POST', teacherKey: key, bearer: true });
-
 // Close a class for good: deletes the room and every hand-in on the server.
-export const closeRoom = (code, key) =>
-  api(`/rooms/${encodeURIComponent(code)}`, { method: 'DELETE', teacherKey: key, bearer: true });
+export const closeRoom = (code) =>
+  api(`/rooms/${encodeURIComponent(code)}`, { method: 'DELETE', bearer: true });
 
 export const checkRoom = (code) =>
   api(`/rooms/${encodeURIComponent(code)}`);
@@ -193,14 +132,6 @@ export const checkRoom = (code) =>
 export const handIn = (code, payload) =>
   api(`/rooms/${encodeURIComponent(code)}/handin`, { method: 'POST', body: payload });
 
-export const listDesigns = (code, teacherKey) =>
-  api(`/rooms/${encodeURIComponent(code)}/designs`, { teacherKey, bearer: true });
+export const listDesigns = (code) =>
+  api(`/rooms/${encodeURIComponent(code)}/designs`, { bearer: true });
 
-// Recovery: prove a (code, key) pair still opens a room, and recover the
-// class name from the room itself so a restored class looks right. Throws
-// the usual api() errors — 'room not found', 'teacher key required', etc.
-export async function recoverClass(code, key) {
-  await listDesigns(code, key);          // 403s if the key is wrong
-  const room = await checkRoom(code);    // room name for the restored entry
-  return { code, key, teacher: room.teacher || 'My class', created: null };
-}
