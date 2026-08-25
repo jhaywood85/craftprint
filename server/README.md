@@ -1,8 +1,9 @@
-# CraftPrint Classroom server — 5-minute deploy guide
+# CraftPrint service backend — internal operations guide
 
-The Classroom feature (room codes, students handing in designs, teacher
-downloads) needs one tiny server. It runs free on Cloudflare Workers — the
-free tier handles far more than a classroom will ever use.
+This is the backend of the hosted CraftPrint service (a single Cloudflare
+Worker serving the app, Classroom, teacher accounts, and design sync).
+CraftPrint is offered as a service — users don't run their own servers;
+this document is for operating OUR deployment.
 
 ## What you get
 
@@ -56,16 +57,13 @@ Secrets and variables → Actions:
    `https://craftprint-class.yourname.workers.dev` — that's the whole app,
    with the Classroom API under `/api/`.
 
-Students never touch any of this: the teacher's Class screen shows a QR
-code / join link that carries the room code *and* server address, so
-student tablets configure themselves the moment they scan it.
+The app talks to the API same-origin (relative `/api/...`), so there is no
+server address anywhere in the product. For local development and automated
+tests, an override can be injected via
+`classroom.setState({ ...state, server: 'http://localhost:8788' })` —
+it never appears in the UI.
 
-**Tip for schools:** to make the server the built-in default for everyone
-using your copy of the app (so even the QR isn't needed for setup), put the
-address in `DEFAULT_SERVER` at the top of `src/classroom.js` and redeploy
-the site.
-
-## Running it for a whole school (free tier)
+## Capacity on the free tier
 
 Both halves of CraftPrint are designed to sit inside free hosting tiers, with
 no card on file:
