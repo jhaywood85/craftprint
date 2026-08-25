@@ -8,6 +8,7 @@
 import { PALETTE } from './palette.js';
 import { SOFT_EDGE_MM } from './geometry.js';
 import { blocksToSTL } from './stl.js';
+import { blocksTo3MF } from './threemf.js';
 import { makeZip } from './zip.js';
 import * as storage from './storage.js';
 import * as classroom from './classroom.js';
@@ -869,14 +870,21 @@ export function setupUI(app, { firstRun }) {
             confirmAction('👀 Open this build?', `Your current build will be replaced by ${d.student}'s “${d.name}”. Save yours first if you need it!`, '👀 Open', doLoad);
           } else doLoad();
         });
+        const mfB = document.createElement('button');
+        mfB.className = 'btn small';
+        mfB.textContent = '🌈 3MF';
+        mfB.addEventListener('click', () => {
+          downloadFile(blocksTo3MF(d.blocks, exportMM, d.name, exportOpts()),
+            `${fileSlug(d.student)}-${fileSlug(d.name)}.3mf`, 'model/3mf');
+        });
         const stlB = document.createElement('button');
         stlB.className = 'btn small';
-        stlB.textContent = '🖨️ STL';
+        stlB.textContent = '⚪ STL';
         stlB.addEventListener('click', () => {
           downloadFile(blocksToSTL(d.blocks, exportMM, exportOpts()),
             `${fileSlug(d.student)}-${fileSlug(d.name)}.stl`, 'model/stl');
         });
-        row.append(openB, stlB);
+        row.append(openB, mfB, stlB);
         card.append(title, meta, row);
         grid.appendChild(card);
       }
@@ -907,7 +915,19 @@ export function setupUI(app, { firstRun }) {
     })));
     downloadFile(zip, `class-${classroom.activeClass()?.code}-print-files.zip`, 'application/zip');
     app.sounds.tada();
-    toast(`🖨️ ${classDesignsCache.length} print file${classDesignsCache.length > 1 ? 's' : ''} zipped — drop the STLs in your slicer!`, 4500);
+    toast(`⚪ ${classDesignsCache.length} plain print file${classDesignsCache.length > 1 ? 's' : ''} zipped — drop the STLs in your slicer!`, 4500);
+  });
+
+  $('classZip3MFBtn').addEventListener('click', () => {
+    app.sounds.click();
+    if (classDesignsCache.length === 0) { toast('🙂 Nothing handed in yet!'); return; }
+    const zip = makeZip(classDesignsCache.map((d) => ({
+      name: `${fileSlug(d.student)}-${fileSlug(d.name)}.3mf`,
+      data: new Uint8Array(blocksTo3MF(d.blocks, exportMM, d.name, exportOpts())),
+    })));
+    downloadFile(zip, `class-${classroom.activeClass()?.code}-color-files.zip`, 'application/zip');
+    app.sounds.tada();
+    toast(`🌈 ${classDesignsCache.length} color print file${classDesignsCache.length > 1 ? 's' : ''} zipped — 3MFs keep every block's color!`, 4500);
   });
 
   // ----------------------------------------------------------------- export
