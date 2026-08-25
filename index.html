@@ -137,6 +137,28 @@
 
 <div id="overlay" class="overlay hidden">
 
+  <!-- Very first launch: ask who's building so the app can lead with the
+       right door — students join their class, teachers set one up, everyone
+       else heads straight into the build tour. -->
+  <div id="roleModal" class="modal hidden">
+    <h2>👋 Welcome! Who's building today?</h2>
+    <p class="lead">Pick one — you can always do the others later.</p>
+    <div class="role-buttons">
+      <button id="roleStudentBtn" class="btn big role-btn">
+        <span class="role-name">🎒 I'm a student</span>
+        <span class="role-sub">My teacher gave me a room code</span>
+      </button>
+      <button id="roleTeacherBtn" class="btn big role-btn">
+        <span class="role-name">🍎 I'm a teacher</span>
+        <span class="role-sub">Set up a class and collect my students' builds</span>
+      </button>
+      <button id="roleCasualBtn" class="btn primary big role-btn">
+        <span class="role-name">🏠 Just building for fun</span>
+        <span class="role-sub">Take me straight to the blocks!</span>
+      </button>
+    </div>
+  </div>
+
   <div id="welcomeModal" class="modal hidden">
     <h2>🚀 Welcome to CraftPrint!</h2>
     <p class="lead">You're <b>inside</b> your own block world — walk around and build, just like Minecraft!</p>

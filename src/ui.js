@@ -30,10 +30,14 @@ export function setupUI(app, { firstRun }) {
     overlay.classList.remove('hidden');
     for (const m of modals) m.classList.toggle('hidden', m.id !== id);
   }
+  // Set when a brand-new student/teacher detours into the Class screen before
+  // seeing the build tour — the tour opens as soon as that detour closes.
+  let welcomePending = false;
   function closeModals() {
     document.body.classList.remove('modal-open');
     overlay.classList.add('hidden');
     for (const m of modals) m.classList.add('hidden');
+    if (welcomePending) { welcomePending = false; openModal('welcomeModal'); }
   }
   overlay.addEventListener('pointerdown', (e) => {
     if (e.target === overlay) closeModals();
@@ -723,8 +727,7 @@ export function setupUI(app, { firstRun }) {
     area.append(p, btn);
   }
 
-  $('classTeacherModeBtn').addEventListener('click', () => {
-    app.sounds.click();
+  function openTeacherSetup() {
     showClassView('setup');
     renderClassAuthArea();
     // Ask the service whether it wants a staff passcode, so the field is
@@ -732,6 +735,10 @@ export function setupUI(app, { firstRun }) {
     classroom.health()
       .then((info) => $('classPasscodeRow').classList.toggle('hidden', !info.needsPasscode))
       .catch(() => { /* offline: Create will report it */ });
+  }
+  $('classTeacherModeBtn').addEventListener('click', () => {
+    app.sounds.click();
+    openTeacherSetup();
   });
   $('classBackBtn').addEventListener('click', () => { app.sounds.click(); showClassView('join'); });
 
@@ -1095,6 +1102,10 @@ export function setupUI(app, { firstRun }) {
     }
     openModal('classModal');
     setTimeout(() => $('classStudent').focus(), 50);
+  } else if (firstRun && !storage.loadRole()) {
+    // Brand-new user: ask who's building before anything else, so the app
+    // opens the right door (join a class / set one up / straight to blocks).
+    openModal('roleModal');
   } else if (firstRun) {
     openModal('welcomeModal');
   }
@@ -1102,6 +1113,30 @@ export function setupUI(app, { firstRun }) {
     app.sounds.click();
     closeModals();
     app.lockPointer(); // jump straight into first person
+  });
+
+  // ------------------------------------------------------------- role picker
+  // Students and teachers detour through the Class screen first; the build
+  // tour still matters for them, so it pops up when that detour closes.
+  $('roleStudentBtn').addEventListener('click', () => {
+    app.sounds.click();
+    storage.saveRole('student');
+    welcomePending = true;
+    renderClassModal(); // no class yet -> the join view, code + name inputs
+    openModal('classModal');
+    setTimeout(() => $('classCode').focus(), 50);
+  });
+  $('roleTeacherBtn').addEventListener('click', () => {
+    app.sounds.click();
+    storage.saveRole('teacher');
+    welcomePending = true;
+    openTeacherSetup();
+    openModal('classModal');
+  });
+  $('roleCasualBtn').addEventListener('click', () => {
+    app.sounds.click();
+    storage.saveRole('casual');
+    openModal('welcomeModal');
   });
 
   // --------------------------------------------------------------- keyboard
