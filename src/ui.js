@@ -454,7 +454,6 @@ export function setupUI(app, { firstRun }) {
     const area = $('accountArea');
     area.innerHTML = '';
     area.classList.add('hidden');
-    if (!classroom.serverURL()) return;
 
     if (account.signedIn()) {
       area.classList.remove('hidden');
@@ -599,7 +598,6 @@ export function setupUI(app, { firstRun }) {
 
   function classErrText(e) {
     const m = String(e?.message || e);
-    if (m === 'no-server') return '🍎 Ask a grown-up to set up the class server first (server/README.md)!';
     if (m === 'offline') return '📡 Could not reach the class server — check the internet connection.';
     if (m.includes('room not found')) return '🤔 That room code doesn’t exist — check the board!';
     if (m.includes('room is full')) return '😅 The room is full — tell your teacher!';
@@ -665,8 +663,6 @@ export function setupUI(app, { firstRun }) {
   }
 
   function renderClassModal() {
-    const st = classroom.getState();
-    $('classServer').value = st.server || classroom.DEFAULT_SERVER || '';
     const cls = classroom.activeClass();
     const student = classroom.studentInfo();
     if (cls) {
@@ -740,37 +736,14 @@ export function setupUI(app, { firstRun }) {
     app.sounds.click();
     showClassView('setup');
     renderClassAuthArea();
-    // Nudge the one-time server step open only while it's still needed.
-    $('classServerSetup').open = !classroom.serverURL();
-    // Ask the configured server whether it wants a staff passcode, so the
-    // field is already there before the teacher presses Create.
-    if (classroom.serverURL()) {
-      classroom.health()
-        .then((info) => $('classPasscodeRow').classList.toggle('hidden', !info.needsPasscode))
-        .catch(() => { /* offline: Create will report it */ });
-    }
+    // Ask the service whether it wants a staff passcode, so the field is
+    // already there before the teacher presses Create.
+    classroom.health()
+      .then((info) => $('classPasscodeRow').classList.toggle('hidden', !info.needsPasscode))
+      .catch(() => { /* offline: Create will report it */ });
   });
   $('classBackBtn').addEventListener('click', () => { app.sounds.click(); showClassView('join'); });
 
-  $('classServerSave').addEventListener('click', async () => {
-    app.sounds.click();
-    const server = $('classServer').value.trim();
-    classroom.setState({ ...classroom.getState(), server });
-    if (!server) { toast('Class server cleared'); return; }
-    // Check the address right away so typos surface immediately.
-    try {
-      const info = await classroom.health();
-      if (info.ok) {
-        app.sounds.tada();
-        $('classPasscodeRow').classList.toggle('hidden', !info.needsPasscode);
-        toast('✅ Server found — you’re ready to create a class!');
-      } else {
-        toast('🤔 That address answered, but it isn’t a CraftPrint class server.');
-      }
-    } catch {
-      toast('❌ No class server at that address — check for typos?');
-    }
-  });
 
   $('classCode').addEventListener('input', () => {
     $('classCode').value = $('classCode').value.toUpperCase();
@@ -823,11 +796,6 @@ export function setupUI(app, { firstRun }) {
 
   $('classCreateBtn').addEventListener('click', async () => {
     app.sounds.click();
-    if (!classroom.serverURL()) {
-      $('classServerSetup').open = true;
-      toast('⚙️ One-time step first: set up the class server below.');
-      return;
-    }
     try {
       const teacher = $('classTeacherName').value.trim() || 'My class';
       const room = await classroom.createRoom(teacher, $('classPasscode').value);
@@ -852,7 +820,6 @@ export function setupUI(app, { firstRun }) {
     $('classTeacherName').value = '';
     showClassView('setup');
     renderClassAuthArea();
-    $('classServerSetup').open = false;
   });
 
   // Saving the key is what makes a LEGACY class recoverable, so nag until

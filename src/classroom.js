@@ -22,11 +22,11 @@ import * as storage from './storage.js';
 // both modules only touch each other inside functions, never at load time.
 import * as account from './account.js';
 
-// The deployed server every copy of this app uses out of the box — Classroom
-// (and teacher accounts, once its Google secrets are set) work with zero
-// device setup. Teachers can still point an individual device at a different
-// server in the Class screen, and join links/QR codes carry the address.
-export const DEFAULT_SERVER = 'https://craftprint-class.craftprint.workers.dev';
+// CraftPrint is a hosted service: the app and its API are served by the SAME
+// Cloudflare Worker, so API calls are same-origin ('' = relative /api/...).
+// There is no user-facing server setting. state.server survives purely as a
+// hidden override for development and automated tests (set via setState).
+export const DEFAULT_SERVER = '';
 
 // Read state, migrating the original single-class shape
 // ({ code, teacherKey } / { code, student }) so nobody loses a live class.
@@ -123,18 +123,19 @@ export const keyFileFor = (cls) => JSON.stringify({
   saved: new Date().toISOString(),
 }, null, 2);
 
+// '' = same origin (production). A dev/test override returns its absolute URL.
 export function serverURL() {
   return (getState().server || DEFAULT_SERVER || '').trim().replace(/\/+$/, '');
 }
 
-// The link students open (or scan from the board) to join in one tap: it
-// carries the room code AND the server address, so student devices need no
-// setup at all.
+// The link students open (or scan from the board) to join in one tap. The
+// dev-only server override rides along so test devices configure themselves;
+// production links are just ?class=CODE.
 export function joinURL(code) {
   const app = `${location.origin}${location.pathname}`;
   const params = new URLSearchParams({ class: code });
   const server = serverURL();
-  if (server && server !== DEFAULT_SERVER) params.set('server', server);
+  if (server) params.set('server', server);
   return `${app}?${params}`;
 }
 
@@ -151,8 +152,7 @@ export async function health() {
 }
 
 async function api(path, { method = 'GET', body, teacherKey, bearer } = {}) {
-  const base = serverURL();
-  if (!base) throw new Error('no-server');
+  const base = serverURL(); // '' = same origin
   const token = bearer && account.signedIn() ? account.info().token : null;
   let res;
   try {

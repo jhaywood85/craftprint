@@ -20,8 +20,7 @@ export const signedIn = () => !!info()?.token;
 // the return URL so the app can reopen the screen the user started from
 // (e.g. 'class' brings a teacher back to the Class screen, not My Stuff).
 export function signInURL(back) {
-  const base = serverURL();
-  if (!base) return null;
+  const base = serverURL(); // '' = same origin
   const here = `${location.origin}${location.pathname}${back ? `?back=${back}` : ''}`;
   return `${base}/api/auth/google/start?return=${encodeURIComponent(here)}`;
 }
@@ -38,8 +37,7 @@ export async function completeLogin(code) {
 }
 
 async function api(path, { method = 'GET', body, auth = true } = {}) {
-  const base = serverURL();
-  if (!base) throw new Error('no-server');
+  const base = serverURL(); // '' = same origin
   const token = info()?.token;
   if (auth && !token) throw new Error('signed-out');
   let res;

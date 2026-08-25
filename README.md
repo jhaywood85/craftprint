@@ -68,7 +68,7 @@ Click the world once to grab the mouse, then:
 | Choose a shape | 🧱 Cube, 🔺 Wedge (45° edge), or Round (a quarter-cylinder: rounded slope lying down, rounded tower corner tipped upright) — shape bar or **Q** |
 | Orient a shape | **Turn** (R) spins about vertical, **Tip** (T) rolls about horizontal — together they reach all 24 axis-aligned orientations; the ghost preview shows the exact pose |
 | Back up / share designs | 📦 My Stuff → **⬇️ Design file** exports the block data as JSON; **⬆️ Open design file** imports it |
-| Classrooms | 🏫 **Class**: the teacher creates a room and writes the 5-letter code on the board; students join with the code + first name and **🖐 Hand in** builds; the teacher collects them all and downloads a zip of print-ready STLs. Needs the free classroom server — see `server/README.md` (5-minute Cloudflare Worker deploy). No accounts, no passwords, first names only. |
+| Classrooms | 🏫 **Class**: the teacher creates a room and writes the 5-letter code on the board; students join with the code + first name and **🖐 Hand in** builds; the teacher collects them all and downloads a zip of print-ready STLs. Built into the CraftPrint service — teachers sign in with Google and create classes right away. Students: no accounts, no passwords, first names only. |
 | Choose a block size | The **Size** button in the shape bar cycles Full → Half → Quarter (**G** too) — small blocks snap to a finer grid for detail work |
 | Build symmetrically | 🦋 Mirror mode (**M**) — wedges flip to mirror too |
 | Undo / redo | **Ctrl+Z** / **Ctrl+Shift+Z** |

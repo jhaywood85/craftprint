@@ -6,7 +6,7 @@
 // launches are instant and work with no network — ideal for a home-screen
 // app on a kid's tablet.
 
-const CACHE = 'craftprint-v40';
+const CACHE = 'craftprint-v41';
 
 const ASSETS = [
   './',
