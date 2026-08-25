@@ -608,10 +608,6 @@ export function setupUI(app, { firstRun }) {
   const fileSlug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'design';
 
   let classDesignsCache = [];
-  // Has the teacher saved the active class's key on this device? Drives the
-  // "save your key" nag, which is the difference between a recoverable class
-  // and a lost one.
-  let keySaved = false;
 
   // Big scannable QR of the join link on the teacher's screen: students point
   // the tablet camera at the board and land in the room with zero typing
@@ -644,13 +640,13 @@ export function setupUI(app, { firstRun }) {
   // reachable from one screen; the active one is highlighted.
   function renderClassTabs() {
     const tabs = $('classTabs');
-    const classes = classroom.allClasses();
+    const classes = classroom.ownedRooms();
     const active = classroom.activeClass();
     tabs.innerHTML = '';
     for (const cls of classes) {
       const b = document.createElement('button');
       b.className = 'btn small class-tab' + (cls.code === active?.code ? ' selected' : '');
-      b.textContent = `${cls.owned ? '☁️ ' : ''}${cls.teacher} · ${cls.code}`;
+      b.textContent = `${cls.teacher} · ${cls.code}`;
       b.title = `Switch to ${cls.teacher} (room ${cls.code})`;
       b.addEventListener('click', () => {
         app.sounds.click();
@@ -670,12 +666,6 @@ export function setupUI(app, { firstRun }) {
       renderClassTabs();
       $('classCodeBig').textContent = cls.code;
       drawJoinQR(cls.code);
-      // Owned classes need no key ceremony at all; legacy ones keep it, plus
-      // (when signed in) a one-tap upgrade into the account.
-      $('classSaveKeyBtn').classList.toggle('hidden', !!cls.owned);
-      $('classClaimBtn').classList.toggle('hidden', !!cls.owned || !account.signedIn());
-      $('classTeacherLeaveBtn').textContent = cls.owned ? 'Close this class' : 'Close on this device';
-      renderKeyWarning();
       refreshClassDesigns();
     } else if (student) {
       showClassView('student');
@@ -799,14 +789,9 @@ export function setupUI(app, { firstRun }) {
     try {
       const teacher = $('classTeacherName').value.trim() || 'My class';
       const room = await classroom.createRoom(teacher, $('classPasscode').value);
-      if (room.owned) {
-        // Account-owned: no key to keep — the class lives on the account.
-        await classroom.refreshOwnedRooms().catch(() => { /* board renders from cache */ });
-        classroom.setActiveClass(room.code);
-      } else {
-        classroom.addClass({ code: room.code, key: room.teacherKey, teacher, created: Date.now() });
-        keySaved = false; // remind them to save this new class's key
-      }
+      // The class lives on the account — nothing to keep on this device.
+      await classroom.refreshOwnedRooms().catch(() => { /* board renders from cache */ });
+      classroom.setActiveClass(room.code);
       app.sounds.tada();
       renderClassModal();
       toast(`🍎 Class created! Room code: ${room.code} — write it on the board.`, 5000);
@@ -822,109 +807,29 @@ export function setupUI(app, { firstRun }) {
     renderClassAuthArea();
   });
 
-  // Saving the key is what makes a LEGACY class recoverable, so nag until
-  // it's done. Account-owned classes need no key at all — no nag.
-  function renderKeyWarning() {
-    const owned = !!classroom.activeClass()?.owned;
-    $('classKeyWarning').classList.toggle('hidden', owned || keySaved);
-  }
 
-  // Upgrade a legacy class into the signed-in account: prove the key once,
-  // then it appears on every device the teacher signs into.
-  $('classClaimBtn').addEventListener('click', async () => {
-    app.sounds.click();
-    const cls = classroom.activeClass();
-    if (!cls || cls.owned || !cls.key) return;
-    try {
-      await classroom.claimRoom(cls.code, cls.key);
-      await classroom.refreshOwnedRooms();
-      classroom.forgetClass(cls.code); // drop the legacy entry; owned now
-      classroom.setActiveClass(cls.code);
-      app.sounds.tada();
-      renderClassModal();
-      toast(`☁️ “${cls.teacher}” is in your account now — it follows you to any device.`, 4500);
-    } catch (e) { toast(classErrText(e)); }
-  });
 
-  $('classSaveKeyBtn').addEventListener('click', () => {
-    app.sounds.click();
-    const cls = classroom.activeClass();
-    if (!cls) return;
-    downloadFile(classroom.keyFileFor(cls),
-      `craftprint-teacher-key-${cls.code}.json`, 'application/json');
-    keySaved = true;
-    renderKeyWarning();
-    toast('🔑 Teacher key saved — keep it somewhere safe (email it to yourself!).', 5000);
-  });
 
   $('classTeacherLeaveBtn').addEventListener('click', () => {
     const cls = classroom.activeClass();
     if (!cls) return;
-    if (cls.owned) {
-      // Owned classes close FOR REAL: room + hand-ins deleted on the server,
-      // gone from every device. Download the designs first if they matter.
-      confirmAction(
-        '🏁 Close this class for good?',
-        `This ends “${cls.teacher}” (room ${cls.code}) everywhere: students can no longer join or hand in, and all its hand-ins are deleted. Download the designs first if you want to keep them!`,
-        '🏁 Close the class',
-        async () => {
-          try {
-            await classroom.closeRoom(cls.code);
-            await classroom.refreshOwnedRooms();
-            renderClassModal();
-            toast(`🏁 “${cls.teacher}” is closed.`);
-          } catch (e) { toast(classErrText(e)); }
-        }
-      );
-      return;
-    }
+    // Closing is FOR REAL: room + hand-ins deleted on the server, gone from
+    // every device. Download the designs first if they matter.
     confirmAction(
-      '👋 Close this class here?',
-      `This device will forget “${cls.teacher}” (room ${cls.code}). You can get it back later with its teacher key — but without that key the hand-ins are gone for good. Save the key or download the designs first!`,
-      '👋 Close it',
-      () => { classroom.forgetClass(cls.code); renderClassModal(); }
+      '🏁 Close this class for good?',
+      `This ends “${cls.teacher}” (room ${cls.code}) everywhere: students can no longer join or hand in, and all its hand-ins are deleted. Download the designs first if you want to keep them!`,
+      '🏁 Close the class',
+      async () => {
+        try {
+          await classroom.closeRoom(cls.code);
+          await classroom.refreshOwnedRooms();
+          renderClassModal();
+          toast(`🏁 “${cls.teacher}” is closed.`);
+        } catch (e) { toast(classErrText(e)); }
+      }
     );
   });
 
-  // --- recovery: room code + teacher key, typed or from a saved key file ---
-  async function recoverInto(code, key) {
-    if (!code || !key) { toast('🙂 Enter both the room code and the teacher key.'); return; }
-    try {
-      const cls = await classroom.recoverClass(code.trim().toUpperCase(), key.trim());
-      classroom.addClass(cls);
-      keySaved = true; // they clearly have the key
-      app.sounds.tada();
-      renderClassModal();
-      toast(`🔑 Got “${cls.teacher}” back — its hand-ins are here.`, 4000);
-    } catch (e) { toast(classErrText(e)); }
-  }
-
-  $('classRecoverCode').addEventListener('input', () => {
-    $('classRecoverCode').value = $('classRecoverCode').value.toUpperCase();
-  });
-  $('classRecoverBtn').addEventListener('click', () => {
-    app.sounds.click();
-    recoverInto($('classRecoverCode').value, $('classRecoverKey').value);
-  });
-
-  const recoverFile = $('classRecoverFile');
-  $('classRecoverFileBtn').addEventListener('click', () => { app.sounds.click(); recoverFile.click(); });
-  recoverFile.addEventListener('change', () => {
-    const file = recoverFile.files && recoverFile.files[0];
-    recoverFile.value = '';
-    if (!file) return;
-    file.text().then((text) => {
-      let data;
-      try { data = JSON.parse(text); } catch { data = null; }
-      if (!data?.code || !data?.key) { toast('😕 That file isn’t a CraftPrint teacher key.'); return; }
-      // A key file remembers which server the class lives on, so a teacher
-      // restoring onto a fresh device doesn't have to set that up again.
-      if (data.server && !classroom.getState().server) {
-        classroom.setState({ ...classroom.getState(), server: data.server });
-      }
-      recoverInto(data.code, data.key);
-    }).catch(() => toast('😕 Could not read that file.'));
-  });
 
   async function refreshClassDesigns() {
     const cls = classroom.activeClass();
@@ -932,8 +837,7 @@ export function setupUI(app, { firstRun }) {
     if (!cls) { grid.innerHTML = ''; return; }
     grid.innerHTML = '<p class="empty">Loading…</p>';
     try {
-      // Owned classes authenticate with the sign-in; legacy ones use the key.
-      const { designs } = await classroom.listDesigns(cls.code, cls.owned ? undefined : cls.key);
+      const { designs } = await classroom.listDesigns(cls.code);
       classDesignsCache = designs;
       grid.innerHTML = '';
       if (designs.length === 0) {

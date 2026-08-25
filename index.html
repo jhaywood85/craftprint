@@ -250,19 +250,6 @@
         <span class="fine">Your school set a passcode for creating classes.</span>
       </div>
       </div>
-      <details id="classRecoverSetup" class="class-teacher-setup">
-        <summary>🔑 Get a class back</summary>
-        <p class="fine">Changed tablet, or cleared Safari? Enter the room code and the teacher key you saved when you created the class (or open the key file you downloaded) to get its hand-ins back.</p>
-        <div class="class-row">
-          <input id="classRecoverCode" class="class-input code" maxlength="5" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Room code to recover">
-          <input id="classRecoverKey" class="class-input wide" placeholder="Teacher key" autocomplete="off" spellcheck="false" aria-label="Teacher key">
-          <button id="classRecoverBtn" class="btn small">🔑 Get it back</button>
-        </div>
-        <div class="class-row">
-          <button id="classRecoverFileBtn" class="btn small">📂 Open a key file</button>
-          <input id="classRecoverFile" type="file" accept=".json,.txt,application/json" hidden>
-        </div>
-      </details>
       <p class="class-teacher-link"><button id="classBackBtn" class="linklike">⬅️ Back</button></p>
     </div>
 
@@ -289,14 +276,8 @@
           <p class="class-code-banner">Room code: <b id="classCodeBig"></b></p>
           <p class="fine">Put this on the board — students scan the QR with the tablet camera (room and server come along automatically), or type the code. Then they build and press 🖐 Hand in.</p>
           <button id="classCopyLinkBtn" class="btn small">🔗 Copy join link</button>
-          <button id="classSaveKeyBtn" class="btn small" title="Download this class's teacher key so you can get its hand-ins back on another device">🔑 Save teacher key</button>
-          <button id="classClaimBtn" class="btn small hidden" title="Attach this class to your Google account — then it follows you to any device, no key needed">☁️ Move into my account</button>
         </div>
       </div>
-      <p id="classKeyWarning" class="warning">
-        🔑 <b>Save your teacher key</b> once — it's the only way back into this
-        class's hand-ins if you switch devices or clear your browser.
-      </p>
       <div class="button-row wrap">
         <button id="classRefreshBtn" class="btn">🔄 Refresh</button>
         <button id="classZipDesignsBtn" class="btn">⬇️ All design files</button>
