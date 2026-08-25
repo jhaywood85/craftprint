@@ -661,6 +661,19 @@ body.touch-device .key-hint { display: none; }
 
 .lead { font-size: 17px; margin: 0 0 12px; }
 
+/* First-launch role picker: three big doors, stacked and tappable. */
+.role-buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.role-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 14px 18px;
+}
+.role-name { font-size: 19px; font-weight: bold; }
+.role-sub { font-size: 14px; opacity: 0.75; font-weight: normal; }
+
 /* Show the control instructions that match the device. */
 .welcome-touch { display: none; }
 body.touch-device .welcome-desktop { display: none; }

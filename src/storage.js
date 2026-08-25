@@ -6,6 +6,7 @@ const SETTINGS = 'craftprint.settings';
 const CLASSROOM = 'craftprint.classroom';
 const ACCOUNT = 'craftprint.account';
 const TOMBS = 'craftprint.tombs';
+const ROLE = 'craftprint.role';
 
 function read(key, fallback) {
   try {
@@ -30,6 +31,11 @@ export function loadCurrent() { return read(CURRENT, null); }
 
 export function loadSettings() { return read(SETTINGS, { sound: true }); }
 export function saveSettings(s) { return write(SETTINGS, s); }
+
+// Who's building on this device — 'student' | 'teacher' | 'casual'. Picked on
+// the very first launch so the app opens the right door; '' until chosen.
+export function loadRole() { return read(ROLE, ''); }
+export function saveRole(r) { return write(ROLE, r); }
 
 // Gallery items: { id, name, date, thumb, blocks, updated, dirty }.
 // `updated` (ms timestamp) and `dirty` (not yet in the cloud) drive sync
